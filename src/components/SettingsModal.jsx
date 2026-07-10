@@ -56,7 +56,7 @@ export function SettingsModal({ onClose, onSaved }) {
           onClick={() => setShowGuide(!showGuide)}
           style={{ marginBottom: showGuide ? 12 : 0 }}
         >
-          {showGuide ? '收起 &#9650;' : '如何获取 API Key？&#9660;'}
+          {showGuide ? '收起 ▲' : '如何获取 API Key？▼'}
         </button>
 
         {showGuide && (
