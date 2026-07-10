@@ -3,7 +3,7 @@
  * Free models route through the Cloudflare Worker proxy; custom models go direct.
  */
 
-import { isFreeModel } from './models';
+import { isFreeModel, migrateModel } from './models';
 
 const DEFAULT_PROXY_URL = 'https://lightweave-proxy.lightweave.workers.dev/v1';
 
@@ -25,7 +25,12 @@ function getApiKey() {
 }
 
 function getModel() {
-  return localStorage.getItem('llm_model') || '@cf/qwen/qwen3-30b-a3b-fp8';
+  const raw = localStorage.getItem('llm_model') || '@cf/qwen/qwen3-30b-a3b-fp8';
+  const migrated = migrateModel(raw);
+  if (migrated !== raw) {
+    localStorage.setItem('llm_model', migrated);
+  }
+  return migrated;
 }
 
 function getHeaders() {
