@@ -5,22 +5,28 @@
 
 export const FREE_MODELS = [
   {
-    id: '@cf/meta/llama-3.1-8b-instruct',
+    id: '@cf/qwen/qwen3-30b-a3b-fp8',
     provider: 'Cloudflare Workers AI',
-    name: 'Llama 3.1 8B',
-    description: '免费 · 速度快 · 推荐',
+    name: 'Qwen3 30B',
+    description: '免费 · 中文最佳 · 推荐',
   },
   {
-    id: '@cf/mistral/mistral-7b-instruct-v0.2',
+    id: '@cf/meta/llama-3.1-8b-instruct-fp8-fast',
     provider: 'Cloudflare Workers AI',
-    name: 'Mistral 7B',
-    description: '免费 · 逻辑推理强',
+    name: 'Llama 3.1 8B',
+    description: '免费 · 速度快 · 通用',
+  },
+  {
+    id: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
+    provider: 'Cloudflare Workers AI',
+    name: 'DeepSeek R1 (Qwen 32B)',
+    description: '免费 · 深度推理 · 稍慢',
   },
   {
     id: 'gemini-2.0-flash',
     provider: 'Google Gemini',
     name: 'Gemini 2.0 Flash',
-    description: '免费 · 需在代理端配置 GEMINI_API_KEY',
+    description: '免费 · 需代理端配 GEMINI_API_KEY',
   },
 ];
 
@@ -68,5 +74,5 @@ export function isLlmConfigured() {
 }
 
 export function getDefaultModel() {
-  return localStorage.getItem('llm_model') || '@cf/meta/llama-3.1-8b-instruct';
+  return localStorage.getItem('llm_model') || '@cf/qwen/qwen3-30b-a3b-fp8';
 }

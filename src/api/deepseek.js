@@ -25,7 +25,7 @@ function getApiKey() {
 }
 
 function getModel() {
-  return localStorage.getItem('llm_model') || '@cf/meta/llama-3.1-8b-instruct';
+  return localStorage.getItem('llm_model') || '@cf/qwen/qwen3-30b-a3b-fp8';
 }
 
 function getHeaders() {
