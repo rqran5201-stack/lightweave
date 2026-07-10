@@ -205,8 +205,13 @@ export function RecordHome({ navigate, apiKeyOk }) {
           onKeyDown={handleKeyDown}
         />
         <div className="input-footer">
-          <span className={`char-count${charCount > 5000 ? ' danger' : charCount > 4500 ? ' warn' : ''}`}>
-            {Math.min(charCount, 5000)} / 5000
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {charCount > 0 && charCount < 10 && (
+              <span style={{ fontSize: 12, color: 'var(--color-tertiary)' }}>还需 {10 - charCount} 字</span>
+            )}
+            <span className={`char-count${charCount > 5000 ? ' danger' : charCount > 4500 ? ' warn' : ''}`}>
+              {Math.min(charCount, 5000)} / 5000
+            </span>
           </span>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button className="btn btn-ghost btn-sm" onClick={() => setShowImport(!showImport)}>
