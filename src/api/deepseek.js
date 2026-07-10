@@ -1,14 +1,21 @@
 /**
  * LLM API client — OpenAI-compatible.
- * All calls go directly from browser. Defaults to DeepSeek, configurable in settings.
+ * Free models route through the Cloudflare Worker proxy; custom models go direct.
  */
 
+import { isFreeModel } from './models';
+
 function getApiBase() {
+  const model = getModel();
+  if (isFreeModel(model)) {
+    const proxyUrl = localStorage.getItem('llm_proxy_url');
+    if (proxyUrl) return proxyUrl.replace(/\/+$/, '');
+  }
   return localStorage.getItem('llm_api_base') || 'https://api.deepseek.com/v1';
 }
 
 function getApiKey() {
-  // New key first, fallback to old key for migration
+  if (isFreeModel(getModel())) return '';
   return localStorage.getItem('llm_api_key')
     || localStorage.getItem('deepseek_api_key')
     || import.meta.env.VITE_DEEPSEEK_API_KEY
@@ -16,10 +23,13 @@ function getApiKey() {
 }
 
 function getModel() {
-  return localStorage.getItem('llm_model') || 'deepseek-chat';
+  return localStorage.getItem('llm_model') || '@cf/meta/llama-3.1-8b-instruct';
 }
 
 function getHeaders() {
+  if (isFreeModel(getModel())) {
+    return { 'Content-Type': 'application/json' };
+  }
   const key = getApiKey();
   if (!key) throw new Error('API Key 未配置。请在设置中配置。');
   return {

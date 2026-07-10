@@ -14,6 +14,7 @@ import { SOPDetail } from './pages/SOPDetail';
 import { GuidePage } from './pages/GuidePage';
 import { SettingsModal } from './components/SettingsModal';
 import { ConfirmDialog } from './components/ConfirmDialog';
+import { isLlmConfigured } from './api/models';
 
 function App() {
   const [page, setPage] = useState('home');
@@ -24,9 +25,7 @@ function App() {
   const [apiKeyOk, setApiKeyOk] = useState(false);
 
   useEffect(() => {
-    const key = localStorage.getItem('llm_api_key') || localStorage.getItem('deepseek_api_key');
-    setApiKeyOk(!!key);
-    // Check if first visit
+    setApiKeyOk(isLlmConfigured());
     if (!localStorage.getItem('guideCompleted')) {
       setPage('guide');
     }
@@ -54,10 +53,10 @@ function App() {
     return 'topnav-link';
   };
 
-  const handleSettingsSaved = (key) => {
-    setApiKeyOk(!!key);
+  const handleSettingsSaved = () => {
+    setApiKeyOk(isLlmConfigured());
     setSettingsOpen(false);
-    showToast('API Key 已保存');
+    showToast('设置已保存');
   };
 
   return (

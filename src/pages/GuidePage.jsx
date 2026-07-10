@@ -26,7 +26,8 @@ export function GuidePage({ onFinish }) {
           <div className="guide-step-desc">{steps[step].desc}</div>
           {step === 2 && (
             <div style={{ marginTop: 20, padding: '12px 16px', background: '#FFFBF7', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--color-secondary)', lineHeight: 1.7, textAlign: 'left' }}>
-              开始使用前，记得在右上角 &#9881; <strong>设置</strong> 里配置 LLM API Key（支持 DeepSeek / OpenAI / Ollama 等），解锁关联分析与问答功能。
+              开始使用前，记得在右上角 &#9881; <strong>设置</strong> 里选择模型。<br />
+              可使用<strong>免费内置模型</strong>（无需注册），也可以配置自己的 API Key（DeepSeek / OpenAI 等），解锁关联分析与问答功能。
             </div>
           )}
         </div>

@@ -172,10 +172,10 @@ export function RecordHome({ navigate, apiKeyOk }) {
         <div className="setup-banner">
           <span style={{ fontSize: 20 }}>&#128269;</span>
           <span style={{ flex: 1, fontSize: 14, color: 'var(--color-secondary)' }}>
-            配置 API Key 以解锁 AI 关联分析和问答功能
+            配置模型以解锁 AI 关联分析和问答功能
           </span>
           <span style={{ fontSize: 12, color: 'var(--color-tertiary)' }}>
-            点击右上角 &#9881; 设置
+            点击右上角 &#9881; 设置，可使用免费模型或自备 API Key
           </span>
         </div>
       )}

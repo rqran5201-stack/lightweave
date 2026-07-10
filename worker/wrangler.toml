@@ -1,0 +1,9 @@
+name = "lightweave-proxy"
+main = "src/index.js"
+compatibility_date = "2025-07-10"
+
+[ai]
+binding = "AI"
+
+# Optional: set with `npx wrangler secret put GEMINI_API_KEY`
+# Enables Gemini 2.0 Flash model support
