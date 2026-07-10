@@ -82,7 +82,27 @@ lightweave/
   - 模型：默认 `deepseek-chat`，支持 gpt-4o / claude-sonnet-4-6 / deepseek-reasoner / qwen2.5 等
   - 旧 deepseek_api_key 自动迁移到新 key（llm_api_key），向下兼容
 
-## 当前功能全景（截至 V1.2）
+### V1.3 — 部署上线 + 体验闭环（2026-07-10）
+
+- [x] **部署：GitHub Pages** — `https://rqran5201-stack.github.io/lightweave/`
+  - 仓库：`github.com/rqran5201-stack/lightweave`
+  - GitHub Actions 自动构建部署（push master → build → deploy）
+  - 纯静态托管，全球 CDN，免费
+- [x] **新增：API Key 未配置引导** — 首页顶部 warm banner，引导用户点击右上角设置
+- [x] **新增：引导页 API Key 提示** — 第三步底部卡片提醒配置 LLM API Key
+- [x] **新增：数据存储一次性提醒** — 首条记录写入后出现 dismissible banner
+
+## 部署信息
+
+| 项目 | 值 |
+|------|-----|
+| 线上地址 | https://rqran5201-stack.github.io/lightweave/ |
+| GitHub 仓库 | https://github.com/rqran5201-stack/lightweave |
+| 部署方式 | GitHub Actions → GitHub Pages |
+| 触发条件 | 每次 push master |
+| 本地开发 | `npm run dev` → localhost:5173 |
+
+## 当前功能全景（截至 V1.3）
 
 | 模块 | 功能 | 状态 |
 |------|------|------|
