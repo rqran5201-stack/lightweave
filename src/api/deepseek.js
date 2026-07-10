@@ -5,11 +5,13 @@
 
 import { isFreeModel } from './models';
 
+const DEFAULT_PROXY_URL = 'https://lightweave-proxy.lightweave.workers.dev/v1';
+
 function getApiBase() {
   const model = getModel();
   if (isFreeModel(model)) {
-    const proxyUrl = localStorage.getItem('llm_proxy_url');
-    if (proxyUrl) return proxyUrl.replace(/\/+$/, '');
+    const proxyUrl = localStorage.getItem('llm_proxy_url') || DEFAULT_PROXY_URL;
+    return proxyUrl.replace(/\/+$/, '');
   }
   return localStorage.getItem('llm_api_base') || 'https://api.deepseek.com/v1';
 }

@@ -3,7 +3,9 @@ import { FREE_MODELS, CUSTOM_MODEL_PRESETS, ALL_MODELS, CUSTOM_MODEL_SENTINEL, i
 
 export function SettingsModal({ onClose, onSaved }) {
   const [selectedModel, setSelectedModel] = useState(getDefaultModel());
-  const [proxyUrl, setProxyUrl] = useState(localStorage.getItem('llm_proxy_url') || '');
+  const [proxyUrl, setProxyUrl] = useState(
+    localStorage.getItem('llm_proxy_url') || 'https://lightweave-proxy.lightweave.workers.dev/v1'
+  );
   const [customModelId, setCustomModelId] = useState(
     (() => {
       const current = localStorage.getItem('llm_model') || '';

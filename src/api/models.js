@@ -54,12 +54,14 @@ export function isFreeModel(modelId) {
  *  A) User has an API key (custom models), OR
  *  B) User has a proxy URL AND a free model selected
  */
+const DEFAULT_PROXY_URL = 'https://lightweave-proxy.lightweave.workers.dev/v1';
+
 export function isLlmConfigured() {
   const key = localStorage.getItem('llm_api_key') || localStorage.getItem('deepseek_api_key');
   if (key) return true;
 
-  const proxyUrl = localStorage.getItem('llm_proxy_url');
-  const model = localStorage.getItem('llm_model') || '';
+  const proxyUrl = localStorage.getItem('llm_proxy_url') || DEFAULT_PROXY_URL;
+  const model = localStorage.getItem('llm_model') || getDefaultModel();
   if (proxyUrl && isFreeModel(model)) return true;
 
   return false;
