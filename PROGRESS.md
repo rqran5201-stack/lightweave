@@ -10,7 +10,8 @@
 
 - **前端**：Vite + React，纯浏览器端，无服务端
 - **存储**：IndexedDB（idb 库），所有用户数据留在浏览器本地
-- **AI**：浏览器直连 LLM API（OpenAI 兼容格式），默认 DeepSeek，可切换
+- **AI 代理**：Cloudflare Worker（`lightweave-proxy`）— Workers AI 免费模型 + 可选 Gemini
+- **AI 直连**：浏览器直连 LLM API（OpenAI 兼容格式），支持 DeepSeek / OpenAI / 自定义
 - **三引擎飞轮**：① 外部知识注入 ② 内部模式关联 ③ SOP 孵化
 
 ## 文件结构
@@ -22,7 +23,8 @@ lightweave/
 │   ├── main.jsx                   # 入口
 │   ├── index.css                  # 完整 design token CSS（22色/字体/圆角/阴影/组件）
 │   ├── api/
-│   │   ├── deepseek.js            # LLM API 客户端（OpenAI 兼容）
+│   │   ├── deepseek.js            # LLM API 客户端（OpenAI 兼容，含代理路由）
+│   │   ├── models.js              # 模型目录：免费模型 + 自有模型预设 + 配置检测
 │   │   └── import.js              # 文件解析器（txt/md/json）
 │   ├── store/
 │   │   └── db.js                  # IndexedDB 封装（5 个 object store）
@@ -37,8 +39,14 @@ lightweave/
 │   └── components/
 │       ├── ImportZone.jsx         # 导入区：文件拖拽 + 文字粘贴（双 tab）
 │       ├── ExportPopover.jsx      # 导出弹窗：两步选择（范围 → 格式）
-│       ├── SettingsModal.jsx      # 设置弹窗：API Key + API 地址 + 模型
+│       ├── SettingsModal.jsx      # 设置弹窗：模型选择器 + 代理地址 + API Key
 │       └── ConfirmDialog.jsx      # 确认弹窗
+├── worker/
+│   ├── src/
+│   │   └── index.js               # Cloudflare Worker LLM 代理（Workers AI / Gemini）
+│   ├── wrangler.toml              # Cloudflare 部署配置
+│   └── package.json
+├── .github/workflows/deploy.yml   # GitHub Actions 自动部署
 ├── dist/                          # 构建产物（纯静态，可直接部署）
 └── PROGRESS.md                    # 本文件
 ```
@@ -82,6 +90,25 @@ lightweave/
   - 模型：默认 `deepseek-chat`，支持 gpt-4o / claude-sonnet-4-6 / deepseek-reasoner / qwen2.5 等
   - 旧 deepseek_api_key 自动迁移到新 key（llm_api_key），向下兼容
 
+### V2.0 — 免费内置 LLM（2026-07-10）
+
+- [x] **Cloudflare Worker LLM 代理** — `https://lightweave-proxy.lightweave.workers.dev`
+  - Workers AI 免费模型：Qwen3 30B（推荐）、Llama 3.1 8B、DeepSeek R1 (Qwen 32B)
+  - 可选 Gemini 2.0 Flash（需 Worker 端配置 `GEMINI_API_KEY`）
+  - 完整 OpenAI 兼容 `/v1/chat/completions` 接口 + SSE 流式
+  - CORS 跨域支持
+- [x] **模型选择器** — 设置页下拉菜单，分组显示免费模型（无需 API Key）和自有模型（需自备 Key）
+  - 免费模型（4 个）：Qwen3 30B / Llama 3.1 8B / DeepSeek R1 Qwen 32B / Gemini 2.0 Flash
+  - 自有模型预设（2 个）：DeepSeek Chat / DeepSeek Reasoner
+  - 支持手动输入模型 ID（`__custom__`）
+- [x] **透明代理路由** — `getApiBase()`/`getApiKey()`/`getHeaders()` 根据所选模型自动切换代理/直连
+- [x] **配置检测升级** — `isLlmConfigured()` 替代硬编码 API Key 检查：有 Key 或（免费模型+代理地址）均视为已配置
+- [x] **旧模型自动迁移** — 废弃模型 ID（Cloudflare 5/30 下线的老模型）自动映射到新模型并回写 localStorage
+- [x] **默认代理地址预填** — `https://lightweave-proxy.lightweave.workers.dev/v1`，新用户开箱即用
+- [x] **代理部署引导** — 设置页内置 5 步 Cloudflare Worker 部署教程（注册 → wrangler → deploy → 填地址 → 可选 Gemini）
+- [x] **Worker 流式兼容修复** — 同时处理 Workers AI 的 raw JSON 和 SSE 两种流式格式
+- [x] **保存按钮最低字数提示** — < 10 字时显示"还需 N 字"，防止用户以为按钮坏了
+
 ### V1.3 — 部署上线 + 体验闭环（2026-07-10）
 
 - [x] **部署：GitHub Pages** — `https://rqran5201-stack.github.io/lightweave/`
@@ -98,11 +125,13 @@ lightweave/
 |------|-----|
 | 线上地址 | https://rqran5201-stack.github.io/lightweave/ |
 | GitHub 仓库 | https://github.com/rqran5201-stack/lightweave |
-| 部署方式 | GitHub Actions → GitHub Pages |
-| 触发条件 | 每次 push master |
+| LLM 代理 | https://lightweave-proxy.lightweave.workers.dev |
+| 前端部署 | GitHub Actions → GitHub Pages |
+| 代理部署 | wrangler deploy → Cloudflare Workers |
+| 触发条件 | 前端：push master / 代理：手动 `wrangler deploy` |
 | 本地开发 | `npm run dev` → localhost:5173 |
 
-## 当前功能全景（截至 V1.3）
+## 当前功能全景（截至 V2.0）
 
 | 模块 | 功能 | 状态 |
 |------|------|------|
@@ -116,18 +145,23 @@ lightweave/
 | 发现 | 最近关联（真实数据） | ✅ |
 | 导出 | MD / TXT / PDF，两步选择 | ✅ |
 | 引导 | 3 步引导页，首次使用自动触发 | ✅ |
-| 设置 | API Key + API 地址 + 模型，留空使用默认值 | ✅ |
+| 免费模型 | Qwen3 30B / Llama 3.1 8B / DeepSeek R1 / Gemini | ✅ |
+| 模型选择器 | 免费模型 / 自有模型 分组下拉选择 + 手动输入 | ✅ |
+| 代理部署 | Cloudflare Worker LLM 代理 + 内置部署引导 | ✅ |
+| 旧模型迁移 | 废弃模型 ID 自动映射到新模型 | ✅ |
 | 周度洞察 | — | ⬜ 占位 |
 | 数据备份 | — | ⬜ |
 
 ## LLM 后端配置参考
 
-| 服务 | API 地址 | 模型示例 |
-|------|---------|---------|
-| DeepSeek（默认） | `https://api.deepseek.com/v1` | `deepseek-chat` / `deepseek-reasoner` |
-| OpenAI | `https://api.openai.com/v1` | `gpt-4o` / `gpt-4-turbo` |
-| Ollama（本地） | `http://localhost:11434/v1` | `qwen2.5` / `llama3` / `mistral` |
-| 其他兼容接口 | 任意 | 按服务商提供 |
+| 服务 | 类型 | 模型示例 |
+|------|------|---------|
+| Cloudflare Workers AI（默认） | 免费内置 | `Qwen3 30B` / `Llama 3.1 8B` / `DeepSeek R1 Qwen 32B` |
+| Google Gemini | 免费（需 Worker 端配置） | `gemini-2.0-flash` |
+| DeepSeek | 自有 API Key | `deepseek-chat` / `deepseek-reasoner` |
+| OpenAI | 自有 API Key | `gpt-4o` / `gpt-4-turbo` |
+| Ollama（本地） | 自有 | `qwen2.5` / `llama3` / `mistral` |
+| 其他兼容接口 | 自有 API Key | 按服务商提供 |
 
 ## 关键设计决策
 
@@ -370,3 +404,65 @@ lightweave/
 **回应**：从对话 transcript（`1916526a-7e2a-4fe7-a3c2-7088be408541.jsonl`，1486 行）和 memory 目录提取了所有交互记录，按时间线组织为"用户反馈与交互记录"章节，每条包含日期、用户原话要点、上下文背景、我的诊断/理解和最终采取的行动。
 
 **涉及文件**：`PROGRESS.md`（完整更新）
+
+---
+
+#### 18. 最低字数提示
+
+**用户**：现在写文字后记录的按钮成灰色了，无法点，上传不上去。
+
+**根因**：保存按钮有 ≥10 字符的最低限制（`canSave = charCount >= 10 && !saving`），但界面上没有任何提示告知这个规则。用户打字后看到按钮仍是灰色，以为是功能故障。
+
+**修复**：在字数统计旁新增"还需 N 字"提示（1-9 字符时显示），超过 10 字符后自动消失。
+
+**涉及文件**：`RecordHome.jsx`
+
+---
+
+#### 19. 免费 LLM 内置
+
+**用户**：你把免费的 LLM 直接部署在织光上，让用户自己选择用哪个模型，这样不需要用户自己配 API KEY，更好上手。
+
+**方案**：Cloudflare Worker 作为 LLM 代理，利用 Cloudflare Workers AI 免费套餐（每日 10 万请求 + 1 万 AI 推理配额）。Worker 暴露 OpenAI 兼容 `/v1/chat/completions` 端点，前端透明路由。
+
+**实现**：
+- 新建 `worker/` 目录（3 个文件）：Cloudflare Worker 代理，支持 Workers AI 和 Gemini 双后端
+- 新建 `src/api/models.js`：模型目录 + `isLlmConfigured()` + `isFreeModel()` + `migrateModel()`
+- `deepseek.js`：`getApiBase()`/`getApiKey()`/`getHeaders()` 根据模型类型切换代理/直连
+- `SettingsModal.jsx`：下拉模型选择器 + 条件字段（代理地址 / API Key / API Base）+ 5 步代理部署教程
+- `App.jsx`：`apiKeyOk` 改用 `isLlmConfigured()`
+- `GuidePage.jsx`：引导页提及免费模型
+- `RecordHome.jsx`：设置提示横幅文案更新
+
+**部署**：注册 Cloudflare 账号 → `wrangler login` → `wrangler deploy` → Worker 地址 `https://lightweave-proxy.lightweave.workers.dev`。前端默认代理地址已预填。
+
+**费用**：零成本。GitHub Pages 免费 + Cloudflare Workers 免费套餐 + Workers AI 免费额度。
+
+**涉及文件**：`worker/`（3 个新文件）、`models.js`（新）、`deepseek.js`、`SettingsModal.jsx`、`App.jsx`、`RecordHome.jsx`、`GuidePage.jsx`
+
+---
+
+#### 20. 模型废弃修复
+
+**用户**：输入问题后提示 `5028: This model was deprecated on 2026-05-30. Please use an alternative model.`
+
+**根因**：Cloudflare 在 5 月 30 日废弃了 `@cf/meta/llama-3.1-8b-instruct` 等一批老模型。免费模型列表更新为新模型名后，用户 localStorage 中缓存的旧模型 ID 不在 `FREE_IDS` 集合中，`isFreeModel()` 返回 false，请求被错误路由到 DeepSeek API。
+
+**修复**：
+- 免费模型列表更新为 4 个当前可用模型（Qwen3 30B / Llama 3.1 8B fp8 / DeepSeek R1 Qwen 32B / Gemini 2.0 Flash）
+- 新增 `DEPRECATED_FREE_IDS` 集合 + `migrateModel()` 自动映射旧 ID 到新 ID
+- `getModel()` 读取时自动迁移并回写 localStorage
+
+**涉及文件**：`models.js`、`deepseek.js`
+
+---
+
+#### 21. Q&A 流式空响应
+
+**用户**：问答提示"未收到回复，请检查 API Key 或重试"，但有时又能看到回复内容。
+
+**诊断**：Workers AI 流式返回的数据格式可能因模型而异——部分模型返回 raw JSON（`{"response":"text"}\n`），部分返回 SSE 格式（`data: {"response":"text"}\n\n`）。Worker 只处理了 raw JSON 格式，遇到 SSE 格式时 JSON.parse 失败，所有 chunk 被跳过，导致前端收到 0 内容。
+
+**修复**：Worker 的 `handleWorkersAIStream` 新增 `data:` / `data: ` 前缀兼容处理，同时识别两种流式格式。
+
+**涉及文件**：`worker/src/index.js`

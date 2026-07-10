@@ -68,8 +68,17 @@ async function handleWorkersAIStream(env, model, messages, temperature, maxToken
             const trimmed = line.trim();
             if (!trimmed) continue;
 
+            // Workers AI may return raw JSON or SSE-formatted lines
+            let data = trimmed;
+            if (data.startsWith('data: ')) {
+              data = data.slice(6);
+            } else if (data.startsWith('data:')) {
+              data = data.slice(5);
+            }
+            if (data === '[DONE]') continue;
+
             try {
-              const parsed = JSON.parse(trimmed);
+              const parsed = JSON.parse(data);
               const text = parsed.response || '';
               if (!text) continue;
 
