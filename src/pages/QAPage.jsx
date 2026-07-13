@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useToast } from '../App';
-import { getQAHistory, saveQAMessage, deleteQAMessage, getRecentRecords, saveSOP, getAllSOPs } from '../store/db';
+import { getQAHistory, saveQAMessage, deleteQAMessage, getRecentRecords, saveSOP, getAllSOPs, getAllRecordsWithEmbeddings } from '../store/db';
 import { answerQuestion, generateSOP } from '../api/deepseek';
+import { generateEmbedding, findRelevantRecords } from '../api/embedding';
 
 /**
  * Group consecutive user+assistant messages into "topics" for folding.
@@ -97,8 +98,16 @@ export function QAPage({ navigate, apiKeyOk }) {
     setLoading(true);
 
     try {
-      const records = await getRecentRecords(50);
-      setRecordCount(records.length);
+      let records;
+      const allWithEmb = await getAllRecordsWithEmbeddings();
+      setRecordCount(allWithEmb.length);
+      try {
+        const qEmb = await generateEmbedding(input);
+        records = findRelevantRecords(qEmb, allWithEmb, 30);
+        if (records.length < 3) records = allWithEmb.slice(-30);
+      } catch {
+        records = await getRecentRecords(50);
+      }
       const conversationHistory = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }));
 
       const aiMsg = { id: crypto.randomUUID(), role: 'assistant', content: '', createdAt: Date.now() };
@@ -139,7 +148,15 @@ export function QAPage({ navigate, apiKeyOk }) {
   const handleGenerateSOP = async (msgId, question) => {
     setGeneratingSOP(msgId);
     try {
-      const records = await getRecentRecords(50);
+      let records;
+      const allWithEmb = await getAllRecordsWithEmbeddings();
+      try {
+        const qEmb = await generateEmbedding(question);
+        records = findRelevantRecords(qEmb, allWithEmb, 30);
+        if (records.length < 3) records = allWithEmb.slice(-30);
+      } catch {
+        records = await getRecentRecords(50);
+      }
 
       // Dedup: check existing SOPs with similar titles
       const existingSOPs = await getAllSOPs();

@@ -15,6 +15,8 @@ import { GuidePage } from './pages/GuidePage';
 import { SettingsModal } from './components/SettingsModal';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { isLlmConfigured } from './api/models';
+import { getRecordsWithoutEmbeddings, saveEmbedding } from './store/db';
+import { generateEmbedding } from './api/embedding';
 
 function App() {
   const [page, setPage] = useState('home');
@@ -29,6 +31,25 @@ function App() {
     if (!localStorage.getItem('guideCompleted')) {
       setPage('guide');
     }
+  }, []);
+
+  // Background: generate embeddings for legacy records that don't have them yet
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const pending = await getRecordsWithoutEmbeddings();
+        if (pending.length === 0) return;
+        for (const record of pending) {
+          if (cancelled) break;
+          try {
+            const emb = await generateEmbedding(record.content);
+            await saveEmbedding(record.id, emb);
+          } catch { /* skip individual failures */ }
+        }
+      } catch { /* model not ready yet, will catch on next save */ }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   const navigate = useCallback((p, params = {}) => {

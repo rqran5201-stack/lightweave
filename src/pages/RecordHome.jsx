@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '../App';
-import { saveRecord, getRecentRecords, searchRecords, getRecordCount, saveAssociation, deleteRecord } from '../store/db';
+import { saveRecord, getRecentRecords, searchRecords, getRecordCount, saveAssociation, deleteRecord, saveEmbedding, getAllRecordsWithEmbeddings } from '../store/db';
 import { analyzeAssociations } from '../api/deepseek';
+import { generateEmbedding, findRelevantRecords } from '../api/embedding';
 import { ImportZone } from '../components/ImportZone';
 
 export function RecordHome({ navigate, apiKeyOk }) {
@@ -31,7 +32,7 @@ export function RecordHome({ navigate, apiKeyOk }) {
   useEffect(() => { loadRecords(); }, [loadRecords]);
 
   const charCount = content.length;
-  const canSave = charCount >= 10 && !saving;
+  const canSave = charCount > 0 && !saving;
 
   const handleSave = async () => {
     if (!canSave) return;
@@ -42,13 +43,26 @@ export function RecordHome({ navigate, apiKeyOk }) {
       showToast('记录已保存');
       await loadRecords();
 
-      // Trigger association analysis (engine②)
+      // Trigger association analysis (engine②) — semantic search over all records
       setAssociationState('loading');
       setBannerExpanded(false);
 
       try {
-        const allRecords = await getRecentRecords(50);
-        const historicalRecords = allRecords.filter(r => r.id !== record.id);
+        let historicalRecords;
+        try {
+          const newEmb = await generateEmbedding(content);
+          saveEmbedding(record.id, newEmb).catch(() => {}); // persist in background
+          const allWithEmb = await getAllRecordsWithEmbeddings();
+          historicalRecords = findRelevantRecords(newEmb, allWithEmb.filter(r => r.id !== record.id), 30);
+          if (historicalRecords.length < 3) {
+            // Not enough embeddings yet — fall back to recent records
+            historicalRecords = allWithEmb.filter(r => r.id !== record.id).slice(0, 30);
+          }
+        } catch {
+          // Embedding model not ready — fall back to recent records
+          const allRecords = await getRecentRecords(50);
+          historicalRecords = allRecords.filter(r => r.id !== record.id);
+        }
         const result = await analyzeAssociations(record, historicalRecords);
 
         if (result.associations && result.associations.length > 0) {
@@ -110,9 +124,22 @@ export function RecordHome({ navigate, apiKeyOk }) {
       setBannerExpanded(false);
       try {
         let allAssociations = [];
+        // Generate embeddings for imported records in background
+        Promise.all(saved.map(r => generateEmbedding(r.content).then(emb => saveEmbedding(r.id, emb)).catch(() => {}))).catch(() => {});
         for (const record of saved) {
-          const allRecords = await getRecentRecords(50);
-          const historicalRecords = allRecords.filter(r => r.id !== record.id);
+          let historicalRecords;
+          try {
+            const newEmb = await generateEmbedding(record.content);
+            saveEmbedding(record.id, newEmb).catch(() => {});
+            const allWithEmb = await getAllRecordsWithEmbeddings();
+            historicalRecords = findRelevantRecords(newEmb, allWithEmb.filter(r => r.id !== record.id), 30);
+            if (historicalRecords.length < 3) {
+              historicalRecords = allWithEmb.filter(r => r.id !== record.id).slice(0, 30);
+            }
+          } catch {
+            const allRecords = await getRecentRecords(50);
+            historicalRecords = allRecords.filter(r => r.id !== record.id);
+          }
           if (historicalRecords.length === 0) continue;
           const result = await analyzeAssociations(record, historicalRecords);
           if (result.associations && result.associations.length > 0) {
@@ -206,9 +233,6 @@ export function RecordHome({ navigate, apiKeyOk }) {
         />
         <div className="input-footer">
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {charCount > 0 && charCount < 10 && (
-              <span style={{ fontSize: 12, color: 'var(--color-tertiary)' }}>还需 {10 - charCount} 字</span>
-            )}
             <span className={`char-count${charCount > 5000 ? ' danger' : charCount > 4500 ? ' warn' : ''}`}>
               {Math.min(charCount, 5000)} / 5000
             </span>

@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { FREE_MODELS, CUSTOM_MODEL_PRESETS, ALL_MODELS, CUSTOM_MODEL_SENTINEL, isFreeModel, getDefaultModel } from '../api/models';
+import { exportAllData, validateBackup, readBackupFile, importBackup } from '../api/backup';
 
 export function SettingsModal({ onClose, onSaved }) {
   const [selectedModel, setSelectedModel] = useState(getDefaultModel());
@@ -22,9 +23,61 @@ export function SettingsModal({ onClose, onSaved }) {
   const [showKeyGuide, setShowKeyGuide] = useState(false);
   const [showProxyGuide, setShowProxyGuide] = useState(false);
 
+  // Backup states
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importSummary, setImportSummary] = useState(null);
+  const [importError, setImportError] = useState('');
+  const [importDone, setImportDone] = useState(false);
+  const fileInputRef = useRef(null);
+
   const modelIsFree = isFreeModel(selectedModel);
   const showCustomInput = selectedModel === CUSTOM_MODEL_SENTINEL;
   const effectiveModelId = showCustomInput ? customModelId : selectedModel;
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      await exportAllData();
+    } catch (e) {
+      setExporting(false);
+    }
+  };
+
+  const handleFilePicked = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImportError('');
+    setImportDone(false);
+    try {
+      const json = await readBackupFile(file);
+      const result = validateBackup(json);
+      if (!result.valid) {
+        setImportError(result.error);
+        return;
+      }
+      setImportSummary({ json, summary: result.summary });
+    } catch (err) {
+      setImportError(err.message || '文件读取失败');
+    }
+    // Reset file input so the same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleImportConfirm = async () => {
+    if (!importSummary) return;
+    setImporting(true);
+    setImportError('');
+    try {
+      const result = await importBackup(importSummary.json);
+      setImportSummary(null);
+      setImportDone(true);
+    } catch (err) {
+      setImportError(err.message || '导入失败');
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const handleSave = () => {
     if (effectiveModelId) {
@@ -287,10 +340,100 @@ export function SettingsModal({ onClose, onSaved }) {
           </>
         )}
 
+        {/* Data Management */}
+        <div style={{ marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--color-border-light)' }}>
+          <h4 style={{ fontSize: 15, color: 'var(--color-on-surface)', marginBottom: 4, fontWeight: 600 }}>
+            &#128451; 数据管理
+          </h4>
+          <p style={{ fontSize: 13, color: 'var(--color-tertiary)', marginBottom: 16, lineHeight: 1.6 }}>
+            所有数据只存在此浏览器的本地存储中。清除浏览器数据会导致记录丢失，建议定期备份。
+          </p>
+
+          <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={handleExport}
+              disabled={exporting}
+              style={{ flex: 1 }}
+            >
+              {exporting ? '导出中...' : '&#128190; 导出备份'}
+            </button>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importing}
+              style={{ flex: 1 }}
+            >
+              {importing ? '导入中...' : '&#128229; 导入恢复'}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              style={{ display: 'none' }}
+              onChange={handleFilePicked}
+            />
+          </div>
+
+          {/* Import confirmation */}
+          {importSummary && (
+            <div style={{
+              background: 'var(--color-insight-highlight-bg)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+              padding: '16px 18px',
+              marginBottom: 16,
+            }}>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, color: 'var(--color-on-surface)' }}>
+                确认导入备份？
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--color-secondary)', lineHeight: 1.8, marginBottom: 12 }}>
+                备份时间：{importSummary.summary.exportedAt ? new Date(importSummary.summary.exportedAt).toLocaleString('zh-CN') : '未知'}<br />
+                包含：{importSummary.summary.records} 条记录、{importSummary.summary.associations} 条关联、{importSummary.summary.sops} 个 SOP、{importSummary.summary.qaMessages} 条问答<br />
+                <span style={{ color: 'var(--color-warning)' }}>导入将与现有数据合并，不会覆盖已有记录。</span>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-primary btn-sm" onClick={handleImportConfirm} disabled={importing}>
+                  {importing ? '导入中...' : '确认导入'}
+                </button>
+                <button className="btn btn-ghost btn-sm" onClick={() => setImportSummary(null)}>取消</button>
+              </div>
+            </div>
+          )}
+
+          {/* Import error */}
+          {importError && (
+            <div style={{
+              background: 'var(--color-danger-hover-bg)',
+              borderRadius: 'var(--radius-md)',
+              padding: '12px 16px',
+              marginBottom: 16,
+              fontSize: 13,
+              color: 'var(--color-error)',
+            }}>
+              &#9888; {importError}
+            </div>
+          )}
+
+          {/* Import success */}
+          {importDone && (
+            <div style={{
+              background: '#F0F7F0',
+              borderRadius: 'var(--radius-md)',
+              padding: '14px 16px',
+              marginBottom: 16,
+              fontSize: 13,
+              color: 'var(--color-success)',
+              lineHeight: 1.6,
+            }}>
+              &#10003; 数据恢复完成。关闭设置后刷新页面即可看到导入的记录。
+            </div>
+          )}
+        </div>
+
         <p style={{ fontSize: 13, color: 'var(--color-tertiary)', marginTop: 20, marginBottom: 0, lineHeight: 1.6 }}>
-          &#128274; 所有数据只存在你的浏览器里。<br />
-          &#9888; 清除浏览器数据会丢失所有记录。建议定期导出备份。<br />
-          <span style={{ color: 'var(--color-secondary)' }}>版本 v2.0 · 织光 LightWeave</span>
+          &#128274; 所有数据只存在你的浏览器里。上方可导出/恢复备份。<br />
+          <span style={{ color: 'var(--color-secondary)' }}>版本 v2.1 · 织光 LightWeave</span>
         </p>
         <div className="modal-actions">
           <button className="btn btn-ghost" onClick={onClose}>取消</button>

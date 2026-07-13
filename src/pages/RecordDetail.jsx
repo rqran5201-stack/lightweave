@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useToast } from '../App';
-import { getRecord, deleteRecord, getAssociation, getBacklinks, getRecentRecords, saveAssociation } from '../store/db';
+import { getRecord, deleteRecord, getAssociation, getBacklinks, getRecentRecords, saveAssociation, getAllRecordsWithEmbeddings } from '../store/db';
 import { analyzeAssociations } from '../api/deepseek';
+import { generateEmbedding, findRelevantRecords } from '../api/embedding';
 import { ExportPopover } from '../components/ExportPopover';
 
 export function RecordDetail({ id, navigate, showConfirm }) {
@@ -36,8 +37,18 @@ export function RecordDetail({ id, navigate, showConfirm }) {
         analyzedRef.current = id;
         setAnalyzing(true);
         try {
-          const allRecords = await getRecentRecords(50);
-          const otherRecords = allRecords.filter(r2 => r2.id !== id);
+          let otherRecords;
+          try {
+            const newEmb = await generateEmbedding(r.content);
+            const allWithEmb = await getAllRecordsWithEmbeddings();
+            otherRecords = findRelevantRecords(newEmb, allWithEmb.filter(r2 => r2.id !== id), 30);
+            if (otherRecords.length < 3) {
+              otherRecords = allWithEmb.filter(r2 => r2.id !== id).slice(0, 30);
+            }
+          } catch {
+            const allRecords = await getRecentRecords(50);
+            otherRecords = allRecords.filter(r2 => r2.id !== id);
+          }
           if (otherRecords.length > 0) {
             const result = await analyzeAssociations(r, otherRecords);
             if (result.associations && result.associations.length > 0) {

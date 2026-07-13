@@ -6,7 +6,7 @@
 import { openDB } from 'idb';
 
 const DB_NAME = 'lightweave';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise = null;
 
@@ -37,6 +37,10 @@ function getDB() {
         // Settings
         if (!db.objectStoreNames.contains('settings')) {
           db.createObjectStore('settings');
+        }
+        // Embeddings (v2) — semantic search vectors
+        if (!db.objectStoreNames.contains('embeddings')) {
+          db.createObjectStore('embeddings', { keyPath: 'recordId' });
         }
       },
     });
@@ -108,8 +112,14 @@ export async function getRecentRecords(limit = 20) {
 export async function deleteRecord(id) {
   const db = await getDB();
   await db.delete('records', id);
-  // Also delete cached associations
   await db.delete('associations', id);
+  await db.delete('embeddings', id);
+}
+
+/** Put a record directly — preserves original ID (used for backup restore). */
+export async function putRecord(record) {
+  const db = await getDB();
+  await db.put('records', record);
 }
 
 export async function searchRecords(query) {
@@ -129,6 +139,58 @@ export async function getRecordsByTag(tag) {
 export async function getRecordCount() {
   const db = await getDB();
   return db.count('records');
+}
+
+// ========== Embeddings (v2) ==========
+
+export async function saveEmbedding(recordId, embedding) {
+  const db = await getDB();
+  await db.put('embeddings', { recordId, embedding, createdAt: Date.now() });
+}
+
+export async function getEmbedding(recordId) {
+  const db = await getDB();
+  return db.get('embeddings', recordId);
+}
+
+export async function getAllEmbeddings() {
+  const db = await getDB();
+  return db.getAll('embeddings');
+}
+
+/**
+ * Join all records with their embeddings.
+ * Returns records with an `.embedding` field (null if not yet embedded).
+ */
+export async function getAllRecordsWithEmbeddings() {
+  const db = await getDB();
+  const [records, embeddings] = await Promise.all([
+    db.getAllFromIndex('records', 'createdAt'),
+    db.getAll('embeddings'),
+  ]);
+  const embMap = new Map(embeddings.map(e => [e.recordId, e.embedding]));
+  return records.map(r => ({ ...r, embedding: embMap.get(r.id) || null }));
+}
+
+/**
+ * Check if the embedding model has been downloaded (any embedding exists).
+ */
+export async function hasEmbeddings() {
+  const db = await getDB();
+  return (await db.count('embeddings')) > 0;
+}
+
+/**
+ * Return all records that don't yet have an embedding.
+ */
+export async function getRecordsWithoutEmbeddings() {
+  const db = await getDB();
+  const [records, embeddings] = await Promise.all([
+    db.getAllFromIndex('records', 'createdAt'),
+    db.getAll('embeddings'),
+  ]);
+  const embSet = new Set(embeddings.map(e => e.recordId));
+  return records.filter(r => !embSet.has(r.id));
 }
 
 // ========== Associations ==========
@@ -223,6 +285,34 @@ export async function deleteQAMessage(id) {
 export async function clearQAHistory() {
   const db = await getDB();
   await db.clear('qaHistory');
+}
+
+// ========== Weekly Insights ==========
+
+/**
+ * Get the ISO week start date (Monday) for a given date.
+ */
+function getWeekStart(date = new Date()) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString().slice(0, 10);
+}
+
+export async function saveWeeklyInsight(insight) {
+  const db = await getDB();
+  const weekStart = insight.weekStart || getWeekStart();
+  const record = { ...insight, weekStart, generatedAt: Date.now() };
+  await db.put('settings', record, `weekly_insight_${weekStart}`);
+  return record;
+}
+
+export async function getWeeklyInsight(weekStart) {
+  const db = await getDB();
+  const key = `weekly_insight_${weekStart || getWeekStart()}`;
+  return db.get('settings', key);
 }
 
 // ========== Settings ==========
