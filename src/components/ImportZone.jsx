@@ -74,9 +74,9 @@ export function ImportZone({ onImported }) {
     setDragging(false); dragCounter.current = 0;
     const files = Array.from(e.dataTransfer.files).filter(f => {
       const ext = f.name.split('.').pop().toLowerCase();
-      return ['txt', 'md', 'json', 'csv'].includes(ext);
+      return ['txt', 'md', 'json', 'csv', 'docx', 'pdf'].includes(ext);
     });
-    if (files.length === 0) { showToast('支持 .txt / .md / .json 文件'); return; }
+    if (files.length === 0) { showToast('支持 .txt / .md / .json / .docx / .pdf 文件'); return; }
     processFiles(files);
   }, [processFiles, showToast]);
 
@@ -185,12 +185,12 @@ export function ImportZone({ onImported }) {
                     拖拽文件到此处，或点击选择
                   </p>
                   <p style={{ fontSize: 12, color: 'var(--color-tertiary)' }}>
-                    .txt / .md / .json · .md 按 ## 标题自动拆分
+                    .txt / .md / .docx / .pdf / .json · .md 按 ## 标题自动拆分 · .pdf 按页拆分
                   </p>
                 </div>
               )}
             </div>
-            <input ref={fileInputRef} type="file" accept=".txt,.md,.json,.csv" multiple
+            <input ref={fileInputRef} type="file" accept=".txt,.md,.json,.csv,.docx,.pdf" multiple
               style={{ display: 'none' }} onChange={handleFileChange} />
           </div>
         )}
