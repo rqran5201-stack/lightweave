@@ -163,13 +163,14 @@ export async function analyzeAssociations(newRecord, historicalRecords) {
   "externalKnowledge": {
     "framework": "可能解释这些记录的外部知识框架（书/理论/心理学概念）",
     "explanation": "用这个框架解释用户经历的1-2句话",
-    "source": "来源：书名/作者/论文标题",
+    "source": "具体来源，格式：书名《xxx》/ 作者全名 / 论文标题。必须是你确认真实存在的来源。不确定就写 null",
     "relevance": "为什么这个框架适用于用户"
   } 或 null（如果找不到合适的外部知识）
 }
 
-重要：只返回有真实关联的记录。如果某条历史记录与当前记录没有实质关联，不要强行关联。关联数量控制在 1-5 条。
-外部知识必须来自真实存在的书/论文/心理学框架，绝对不要编造。`;
+重要：
+- 只返回有真实关联的记录。如果某条历史记录与当前记录没有实质关联，不要强行关联。关联数量控制在 1-5 条。
+- externalKnowledge.source 必须填写具体的、真实存在的来源（书名/作者/论文标题）。空泛表述如"心理学研究表明"一律不允许。无法确认来源真实性时，source 字段必须写 null。编造来源比漏掉来源更糟。`;
 
   const userMessage = `新记录：
 ---
@@ -223,10 +224,11 @@ export async function generateSOP(question, relatedRecords) {
 3. 每步需引用用户的具体记录作为案例
 4. 用温和的、像"未来的自己写给现在的自己"的语气
 5. 不要编造用户没经历过的建议
+6. title 必须从用户提问中直接派生——提取问题的核心主题词作为标题基础，确保同一问题每次生成的标题一致。例如"关于团队协作我有什么经验"→ title 始终为"团队协作方法论"
 
 请以 JSON 格式返回：
 {
-  "title": "SOP 标题",
+  "title": "SOP 标题（从问题核心主题词派生，同一问题每次返回相同标题）",
   "steps": [
     {
       "stepNumber": 1,
@@ -288,4 +290,76 @@ ${recordsContext}`;
   ];
 
   return streamChatCompletion({ messages, model: getModel(), temperature: 0.7, maxTokens: 2048 });
+}
+
+/**
+ * Generate weekly insight from this week's records against historical context.
+ */
+export async function generateWeeklyInsight(weekRecords, historicalRecords) {
+  const weekSummaries = weekRecords
+    .map(r => `[${r.id.slice(0, 8)}] ${new Date(r.createdAt).toLocaleDateString('zh-CN')}: ${r.content.slice(0, 300)}`)
+    .join('\n---\n');
+
+  const historicalSummaries = historicalRecords
+    .slice(0, 20)
+    .map(r => `[${r.id.slice(0, 8)}] ${new Date(r.createdAt).toLocaleDateString('zh-CN')}: ${r.content.slice(0, 200)}`)
+    .join('\n---\n');
+
+  const systemPrompt = `你是织光 LightWeave 的周度洞察引擎。你的任务是基于用户本周的记录，生成一份温暖的、有洞察力的周度回顾。
+
+分析原则：
+1. 从本周记录中提取 3-6 个高频关键词/主题
+2. 感知本周的情绪基调——与历史记录相比，是更平静、更焦虑、更充实还是更低落
+3. 找出本周记录与历史记录之间的 2-3 个亮点关联——不是简单相似，而是认知上的呼应或成长
+4. 用温和的第一人称，像"了解你的朋友在帮你做周度复盘"
+
+请以 JSON 格式返回：
+{
+  "keywords": ["关键词1", "关键词2", ...],
+  "moodTrend": "1-2句话描述本周情绪趋势，与过去对比",
+  "highlights": [
+    {
+      "reason": "关联原因，温和第一人称",
+      "recordId": "关联的历史记录ID（方括号里的8位字符）",
+      "recordDate": "历史记录日期"
+    }
+  ],
+  "summary": "一句话总结本周的认知收获"
+}
+
+重要：
+- 只返回真实存在的模式，不要编造
+- 如果本周记录不足（< 3条），在 summary 中温和地鼓励用户多记录
+- 关键词必须从本周记录中提取，不要使用泛泛的词
+- highlights 中的 recordId 必须是历史记录的真实 ID`;
+
+  const userMessage = `本周记录：
+---
+${weekSummaries}
+---
+
+历史记录（用于对比和找关联）：
+---
+${historicalSummaries || '（暂无历史记录）'}
+---`;
+
+  const result = await chatCompletion({
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userMessage },
+    ],
+    model: getModel(),
+    temperature: 0.5,
+    maxTokens: 1536,
+  });
+
+  const text = result.choices[0].message.content;
+  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || text.match(/(\{[\s\S]*\})/);
+  const jsonStr = jsonMatch ? jsonMatch[1] : text;
+
+  try {
+    return JSON.parse(jsonStr);
+  } catch {
+    return { keywords: [], moodTrend: '', highlights: [], summary: text, rawResponse: text };
+  }
 }

@@ -264,6 +264,20 @@ textarea.input-area::placeholder { color: var(--color-tertiary); }
 .suggested-q { font-size: 14px; padding: 12px 16px; border-radius: var(--radius-md); background: var(--color-surface); border: 1px solid var(--color-border-light); cursor: pointer; transition: var(--transition); text-align: left; font-family: var(--font-serif); color: var(--color-on-surface); }
 .suggested-q:hover { border-color: var(--color-primary); }
 
+/* Q&A scroll area */
+.qa-scroll-area { scrollbar-width: thin; scrollbar-color: var(--color-border) transparent; }
+.qa-scroll-area::-webkit-scrollbar { width: 5px; }
+.qa-scroll-area::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 10px; }
+
+/* Q&A topic folding (Codex-style) */
+.qa-topic-group { margin-bottom: 4px; border: 1px solid var(--color-border-light); border-radius: var(--radius-md); overflow: hidden; background: var(--color-surface); }
+.qa-topic-header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; cursor: pointer; transition: background var(--transition); user-select: none; }
+.qa-topic-header:hover { background: var(--color-card-hover); }
+.qa-topic-arrow { font-size: 10px; color: var(--color-tertiary); flex-shrink: 0; transition: transform 0.15s; }
+.qa-topic-title { flex: 1; font-size: 14px; color: var(--color-on-surface); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qa-topic-meta { font-size: 12px; color: var(--color-tertiary); flex-shrink: 0; }
+.qa-topic-body { padding: 0 12px 8px; }
+
 /* Confirm */
 .confirm-overlay { position: fixed; inset: 0; background: var(--color-overlay); display: flex; align-items: center; justify-content: center; z-index: 400; }
 .confirm-box { background: var(--color-surface); border-radius: var(--radius-lg); padding: 24px 28px; width: 380px; box-shadow: var(--shadow-lg); }
