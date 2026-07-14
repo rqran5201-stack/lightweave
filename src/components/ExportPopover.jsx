@@ -47,13 +47,24 @@ export function ExportPopover({ context, record, associations, externalKnowledge
     if ((scope === 'both' || scope === 'ai') && associations?.length > 0) {
       content += '\n\n---\n## AI 关联分析\n\n';
       associations.forEach(a => {
-        content += `- **${a.category || '关联'}**: ${a.reason}\n  - 置信度: ${a.confidence}\n  - 依据: ${a.evidence}\n\n`;
+        if (!a) return;
+        content += `- **${a.category || '关联'}**: ${a.reason || ''}\n  - 置信度: ${a.confidence || ''}\n  - 依据: ${a.evidence || ''}\n\n`;
       });
     }
     if ((scope === 'both' || scope === 'ai') && externalKnowledge) {
-      content += `\n## 外部知识\n\n${externalKnowledge.framework}\n${externalKnowledge.explanation}\n来源: ${externalKnowledge.source}\n`;
+      content += `\n## 外部知识\n\n${externalKnowledge.framework || ''}\n${externalKnowledge.explanation || ''}\n来源: ${externalKnowledge.source || ''}\n`;
     }
     return content;
+  };
+
+  const triggerDownload = (url, filename) => {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   // Render canvas card → download as PNG
@@ -67,16 +78,19 @@ export function ExportPopover({ context, record, associations, externalKnowledge
         scope,
         dateStr: getDateStr(),
       });
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob((b) => {
+          if (b) resolve(b);
+          else reject(new Error('Canvas toBlob returned null'));
+        }, 'image/png');
+      });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = getFilename('.png');
-      a.click();
+      triggerDownload(url, getFilename('.png'));
       URL.revokeObjectURL(url);
       showToast('图片卡片已导出');
     } catch (e) {
-      showToast('导出失败，请重试');
+      console.error('PNG export failed:', e);
+      showToast('导出失败：' + (e.message || '请重试'));
     } finally {
       setRendering(false);
       onClose();
@@ -119,7 +133,8 @@ export function ExportPopover({ context, record, associations, externalKnowledge
       pdf.save(getFilename('.pdf'));
       showToast('PDF 已导出');
     } catch (e) {
-      showToast('导出失败，请重试');
+      console.error('PDF export failed:', e);
+      showToast('导出失败：' + (e.message || '请重试'));
     } finally {
       setRendering(false);
       onClose();
@@ -127,29 +142,30 @@ export function ExportPopover({ context, record, associations, externalKnowledge
   };
 
   const handleExport = () => {
-    const content = buildTextContent();
+    try {
+      if (format === 'png') {
+        exportPNG();
+        return;
+      }
 
-    if (format === 'png') {
-      exportPNG();
-      return;
+      if (format === 'pdf') {
+        exportPDF();
+        return;
+      }
+
+      const content = buildTextContent();
+      const mimeMap = { md: 'text/markdown', txt: 'text/plain' };
+      const extMap = { md: '.md', txt: '.txt' };
+      const blob = new Blob([content], { type: mimeMap[format] || 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      triggerDownload(url, getFilename(extMap[format]));
+      URL.revokeObjectURL(url);
+      showToast(`已导出 ${formatLabels[format]}`);
+      onClose();
+    } catch (e) {
+      console.error('Export failed:', e);
+      showToast('导出失败：' + (e.message || '请重试'));
     }
-
-    if (format === 'pdf') {
-      exportPDF();
-      return;
-    }
-
-    const mimeMap = { md: 'text/markdown', txt: 'text/plain' };
-    const extMap = { md: '.md', txt: '.txt' };
-    const blob = new Blob([content], { type: mimeMap[format] || 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = getFilename(extMap[format]);
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast(`已导出 ${formatLabels[format]}`);
-    onClose();
   };
 
   return (

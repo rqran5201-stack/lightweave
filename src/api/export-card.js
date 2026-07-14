@@ -78,6 +78,7 @@ export function renderExportCard({ content, associations, externalKnowledge, sco
   const measure = document.createElement('canvas');
   measure.width = CARD_WIDTH;
   const mCtx = measure.getContext('2d');
+  if (!mCtx) throw new Error('Failed to get 2d canvas context');
 
   // Calculate body text lines
   let bodyLines = [];
@@ -121,6 +122,7 @@ export function renderExportCard({ content, associations, externalKnowledge, sco
   canvas.width = CARD_WIDTH;
   canvas.height = cardHeight;
   const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Failed to get 2d canvas context');
 
   // Background
   ctx.fillStyle = BG;
