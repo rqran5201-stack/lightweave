@@ -13,6 +13,7 @@ import { SOPList } from './pages/SOPList';
 import { SOPDetail } from './pages/SOPDetail';
 import { GuidePage } from './pages/GuidePage';
 import { SettingsModal } from './components/SettingsModal';
+import { BackupReminder } from './components/BackupReminder';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { isLlmConfigured } from './api/models';
 import { getRecordsWithoutEmbeddings, saveEmbedding } from './store/db';
@@ -123,6 +124,9 @@ function App() {
       <div className="toast-container">
         {toasts.map(t => <div key={t.id} className="toast">{t.msg}</div>)}
       </div>
+
+      {/* Backup reminder */}
+      {page !== 'guide' && <BackupReminder onOpenSettings={() => setSettingsOpen(true)} />}
 
       {/* Pages */}
       {page === 'guide' && <GuidePage onFinish={() => { localStorage.setItem('guideCompleted', 'true'); navigate('home'); }} />}

@@ -1,8 +1,11 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { FREE_MODELS, CUSTOM_MODEL_PRESETS, ALL_MODELS, CUSTOM_MODEL_SENTINEL, isFreeModel, getDefaultModel } from '../api/models';
-import { exportAllData, validateBackup, readBackupFile, importBackup } from '../api/backup';
+import { exportAllData, exportEncryptedBackup, validateBackup, readBackupFile, importBackup, decryptAndImportBackup } from '../api/backup';
+import { getSetting } from '../store/db';
+import { useToast } from '../App';
 
 export function SettingsModal({ onClose, onSaved }) {
+  const showToast = useToast();
   const [selectedModel, setSelectedModel] = useState(getDefaultModel());
   const [proxyUrl, setProxyUrl] = useState(
     localStorage.getItem('llm_proxy_url') || 'https://lightweave-proxy.lightweave.workers.dev/v1'
@@ -31,6 +34,23 @@ export function SettingsModal({ onClose, onSaved }) {
   const [importDone, setImportDone] = useState(false);
   const fileInputRef = useRef(null);
 
+  // Encryption states
+  const [showEncryptSection, setShowEncryptSection] = useState(false);
+  const [encryptPassword, setEncryptPassword] = useState('');
+  const [encryptConfirmPassword, setEncryptConfirmPassword] = useState('');
+  const [encryptError, setEncryptError] = useState('');
+  const [encryptExporting, setEncryptExporting] = useState(false);
+  const [encryptImporting, setEncryptImporting] = useState(false);
+  const [encryptImportStep, setEncryptImportStep] = useState('idle');
+  const [encryptImportFile, setEncryptImportFile] = useState(null);
+  const [hasEncryptionConfig, setHasEncryptionConfig] = useState(false);
+
+  useEffect(() => {
+    getSetting('encryption_salt').then(salt => {
+      if (salt) setHasEncryptionConfig(true);
+    });
+  }, []);
+
   const modelIsFree = isFreeModel(selectedModel);
   const showCustomInput = selectedModel === CUSTOM_MODEL_SENTINEL;
   const effectiveModelId = showCustomInput ? customModelId : selectedModel;
@@ -49,6 +69,8 @@ export function SettingsModal({ onClose, onSaved }) {
     if (!file) return;
     setImportError('');
     setImportDone(false);
+    setEncryptImportStep('idle');
+    setEncryptImportFile(null);
     try {
       const json = await readBackupFile(file);
       const result = validateBackup(json);
@@ -56,11 +78,15 @@ export function SettingsModal({ onClose, onSaved }) {
         setImportError(result.error);
         return;
       }
+      if (result.encrypted) {
+        setEncryptImportFile(json);
+        setEncryptImportStep('awaitingPassword');
+        return;
+      }
       setImportSummary({ json, summary: result.summary });
     } catch (err) {
       setImportError(err.message || '文件读取失败');
     }
-    // Reset file input so the same file can be re-selected
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -76,6 +102,48 @@ export function SettingsModal({ onClose, onSaved }) {
       setImportError(err.message || '导入失败');
     } finally {
       setImporting(false);
+    }
+  };
+
+  const handleEncryptedExport = async () => {
+    setEncryptError('');
+    if (encryptPassword.length < 8) {
+      setEncryptError('密码至少需要 8 个字符');
+      return;
+    }
+    if (encryptPassword !== encryptConfirmPassword) {
+      setEncryptError('两次输入的密码不一致');
+      return;
+    }
+    setEncryptExporting(true);
+    try {
+      await exportEncryptedBackup(encryptPassword);
+      setHasEncryptionConfig(true);
+      setShowEncryptSection(false);
+      setEncryptPassword('');
+      setEncryptConfirmPassword('');
+      showToast('加密备份已导出');
+    } catch (e) {
+      setEncryptError(e.message || '加密导出失败');
+    } finally {
+      setEncryptExporting(false);
+    }
+  };
+
+  const handleEncryptedImport = async () => {
+    if (!encryptImportFile || !encryptPassword) return;
+    setEncryptImporting(true);
+    setEncryptError('');
+    try {
+      const imported = await decryptAndImportBackup(encryptImportFile, encryptPassword);
+      setEncryptImportStep('idle');
+      setEncryptImportFile(null);
+      setEncryptPassword('');
+      setImportDone(true);
+    } catch (e) {
+      setEncryptError(e.message || '密码错误或文件已损坏');
+    } finally {
+      setEncryptImporting(false);
     }
   };
 
@@ -369,7 +437,7 @@ export function SettingsModal({ onClose, onSaved }) {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".json"
+              accept=".json,.lightweave"
               style={{ display: 'none' }}
               onChange={handleFilePicked}
             />
@@ -427,6 +495,138 @@ export function SettingsModal({ onClose, onSaved }) {
               lineHeight: 1.6,
             }}>
               &#10003; 数据恢复完成。关闭设置后刷新页面即可看到导入的记录。
+            </div>
+          )}
+
+          {/* Encrypted import: password prompt */}
+          {encryptImportStep === 'awaitingPassword' && (
+            <div className="encrypt-section">
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, color: 'var(--color-on-surface)' }}>
+                此备份文件已加密，请输入密码
+              </div>
+              <p style={{ fontSize: 13, color: 'var(--color-tertiary)', marginBottom: 12, lineHeight: 1.6 }}>
+                {encryptImportFile?.summary && (
+                  <>包含 {encryptImportFile.summary.records || '?'} 条记录、{encryptImportFile.summary.associations || '?'} 条关联、{encryptImportFile.summary.sops || '?'} 个 SOP</>
+                )}
+              </p>
+              <input
+                type="password"
+                placeholder="输入加密备份密码"
+                value={encryptPassword}
+                onChange={(e) => { setEncryptPassword(e.target.value); setEncryptError(''); }}
+              />
+              {encryptError && (
+                <div style={{ color: 'var(--color-error)', fontSize: 12, marginTop: 8 }}>
+                  &#9888; {encryptError}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <button className="btn btn-primary btn-sm" onClick={handleEncryptedImport} disabled={encryptImporting || !encryptPassword}>
+                  {encryptImporting ? '解密中...' : '解密并导入'}
+                </button>
+                <button className="btn btn-ghost btn-sm" onClick={() => {
+                  setEncryptImportStep('idle'); setEncryptImportFile(null); setEncryptPassword(''); setEncryptError('');
+                }}>
+                  取消
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Encryption setup toggle */}
+          {!hasEncryptionConfig && (
+            <button
+              className="qa-collapse-toggle"
+              onClick={() => { setShowEncryptSection(!showEncryptSection); setEncryptError(''); }}
+              style={{ width: '100%', justifyContent: 'center', marginBottom: 0, marginTop: 8 }}
+            >
+              {showEncryptSection ? '收起 ▲' : '&#128274; 设置加密备份'}
+            </button>
+          )}
+
+          {/* Encryption setup panel */}
+          {showEncryptSection && (
+            <div className="encrypt-section">
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, color: 'var(--color-on-surface)' }}>
+                设置加密备份密码
+              </div>
+              <p style={{ fontSize: 13, color: 'var(--color-tertiary)', marginBottom: 12, lineHeight: 1.6 }}>
+                设置后备份文件将被 AES-256-GCM 加密。任何人拿到文件也无法看到内容——但请务必牢记密码，丢失后数据将永远无法恢复。
+              </p>
+              <input
+                type="password"
+                placeholder="输入密码（至少 8 个字符）"
+                value={encryptPassword}
+                onChange={(e) => { setEncryptPassword(e.target.value); setEncryptError(''); }}
+                style={{ marginBottom: 8 }}
+              />
+              <input
+                type="password"
+                placeholder="再次输入密码"
+                value={encryptConfirmPassword}
+                onChange={(e) => setEncryptConfirmPassword(e.target.value)}
+              />
+              {encryptPassword.length > 0 && (
+                <div className="encrypt-strength-bar">
+                  {[1, 2, 3, 4].map(i => (
+                    <div key={i} className="encrypt-strength-segment" style={{
+                      background: encryptPassword.length >= i * 3
+                        ? (i <= 2 ? 'var(--color-warning)' : 'var(--color-success)')
+                        : 'var(--color-border)',
+                    }} />
+                  ))}
+                </div>
+              )}
+              {encryptError && (
+                <div style={{ color: 'var(--color-error)', fontSize: 12, marginBottom: 8 }}>
+                  &#9888; {encryptError}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={handleEncryptedExport}
+                  disabled={encryptExporting}
+                  style={{ flex: 1 }}
+                >
+                  {encryptExporting ? '加密中...' : '&#128274; 导出加密备份 (.lightweave)'}
+                </button>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => { setShowEncryptSection(false); setEncryptPassword(''); setEncryptConfirmPassword(''); setEncryptError(''); }}
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Quick encrypted export button (when already configured) */}
+          {hasEncryptionConfig && (
+            <div style={{ display: 'flex', gap: 10, marginBottom: 16, marginTop: 12 }}>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={async () => {
+                  if (!encryptPassword) {
+                    setShowEncryptSection(true);
+                    return;
+                  }
+                  setEncryptExporting(true);
+                  setEncryptError('');
+                  try {
+                    await exportEncryptedBackup(encryptPassword);
+                    showToast('加密备份已更新');
+                  } catch (e) {
+                    setEncryptError(e.message);
+                  } finally {
+                    setEncryptExporting(false);
+                  }
+                }}
+                disabled={encryptExporting}
+                style={{ flex: 1 }}
+              >
+                {encryptExporting ? '加密中...' : '&#128274; 更新加密备份'}
+              </button>
             </div>
           )}
         </div>
