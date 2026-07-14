@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useToast } from '../App';
-import { getQAHistory, saveQAMessage, deleteQAMessage, getRecentRecords, saveSOP, getAllSOPs, getAllRecordsWithEmbeddings } from '../store/db';
-import { answerQuestion, generateSOP } from '../api/deepseek';
-import { generateEmbedding, findRelevantRecords } from '../api/embedding';
+import { getQAHistory, saveQAMessage, deleteQAMessage, getRecentRecords, saveSOP, getAllSOPs, getAllRecordsWithEmbeddings, getSOPEmbeddings, saveSOPEmbedding } from '../store/db';
+import { answerQuestion, generateSOP, mergeSOP } from '../api/deepseek';
+import { generateEmbedding, findRelevantRecords, cosineSimilarity } from '../api/embedding';
 
 /**
  * Group consecutive user+assistant messages into "topics" for folding.
@@ -39,7 +39,7 @@ function groupMessagesIntoTopics(messages) {
   return topics;
 }
 
-export function QAPage({ navigate, apiKeyOk }) {
+export function QAPage({ navigate, apiKeyOk, showConfirm }) {
   const showToast = useToast();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -147,29 +147,66 @@ export function QAPage({ navigate, apiKeyOk }) {
 
   const handleGenerateSOP = async (msgId, question) => {
     setGeneratingSOP(msgId);
+    let qEmb = null;
     try {
       let records;
       const allWithEmb = await getAllRecordsWithEmbeddings();
       try {
-        const qEmb = await generateEmbedding(question);
+        qEmb = await generateEmbedding(question);
         records = findRelevantRecords(qEmb, allWithEmb, 30);
         if (records.length < 3) records = allWithEmb.slice(-30);
       } catch {
         records = await getRecentRecords(50);
       }
 
-      // Dedup: check existing SOPs with similar titles
-      const existingSOPs = await getAllSOPs();
-      const questionKey = question.slice(0, 30).toLowerCase();
-      const existing = existingSOPs.find(s =>
-        s.title && s.title.toLowerCase().includes(questionKey.slice(0, 10))
-      );
-      if (existing) {
-        showToast(`已有相关 SOP「${existing.title}」，将基于新内容更新`);
+      // Semantic topic detection via embedding similarity
+      if (qEmb) {
+        const existingSOPs = await getAllSOPs();
+        const sopEmbeddings = await getSOPEmbeddings();
+        const embMap = new Map(sopEmbeddings.map(e => [e.recordId, e.embedding]));
+
+        let bestMatch = null;
+        let bestScore = 0;
+        for (const sop of existingSOPs) {
+          const emb = embMap.get(`sop_${sop.id}`);
+          if (!emb) continue;
+          const score = cosineSimilarity(qEmb, emb);
+          if (score > bestScore) {
+            bestScore = score;
+            bestMatch = sop;
+          }
+        }
+
+        if (bestMatch && bestScore >= 0.75) {
+          const pct = Math.round(bestScore * 100);
+          showConfirm({
+            title: '检测到相关 SOP',
+            message: `已有 SOP「${bestMatch.title}」\n\n相似度 ${pct}%，看起来是同一个话题。要合并新内容到这个 SOP 吗？`,
+            confirmLabel: '合并续写',
+            confirmClass: 'btn btn-primary btn-sm',
+            cancelLabel: '新建独立 SOP',
+            onConfirm: async () => {
+              const merged = await mergeSOP(bestMatch, question, records);
+              const saved = await saveSOP({ ...merged, id: bestMatch.id });
+              showToast('SOP 已更新');
+              navigate('sopdetail', { id: saved.id });
+            },
+            onCancel: async () => {
+              const sop = await generateSOP(question, records);
+              const saved = await saveSOP(sop);
+              saveSOPEmbedding(saved.id, qEmb).catch(() => {});
+              showToast('SOP 已生成');
+              navigate('sopdetail', { id: saved.id });
+            },
+          });
+          return;
+        }
       }
 
+      // No match — create new SOP
       const sop = await generateSOP(question, records);
       const saved = await saveSOP(sop);
+      if (qEmb) saveSOPEmbedding(saved.id, qEmb).catch(() => {});
       showToast('SOP 已生成');
       navigate('sopdetail', { id: saved.id });
     } catch (e) {

@@ -193,6 +193,23 @@ export async function getRecordsWithoutEmbeddings() {
   return records.filter(r => !embSet.has(r.id));
 }
 
+// SOP title embeddings (for topic detection)
+export async function saveSOPEmbedding(sopId, embedding) {
+  const db = await getDB();
+  await db.put('embeddings', { recordId: `sop_${sopId}`, embedding, createdAt: Date.now() });
+}
+
+export async function getSOPEmbeddings() {
+  const db = await getDB();
+  const all = await db.getAll('embeddings');
+  return all.filter(e => e.recordId && e.recordId.startsWith('sop_'));
+}
+
+export async function deleteSOPEmbedding(sopId) {
+  const db = await getDB();
+  await db.delete('embeddings', `sop_${sopId}`);
+}
+
 // ========== Associations ==========
 
 export async function saveAssociation(recordId, associations) {
@@ -282,6 +299,7 @@ export async function getAllSOPs() {
 export async function deleteSOP(id) {
   const db = await getDB();
   await db.delete('sops', id);
+  await db.delete('embeddings', `sop_${id}`);
 }
 
 // ========== Q&A History ==========

@@ -133,7 +133,7 @@ function App() {
       {page === 'home' && <RecordHome navigate={navigate} apiKeyOk={apiKeyOk} />}
       {page === 'detail' && <RecordDetail id={pageParams.id} navigate={navigate} showConfirm={showConfirm} />}
       {page === 'discovery' && <Discovery navigate={navigate} />}
-      {page === 'qa' && <QAPage navigate={navigate} apiKeyOk={apiKeyOk} />}
+      {page === 'qa' && <QAPage navigate={navigate} apiKeyOk={apiKeyOk} showConfirm={showConfirm} />}
       {page === 'sop' && <SOPList navigate={navigate} />}
       {page === 'sopdetail' && <SOPDetail id={pageParams.id} navigate={navigate} showConfirm={showConfirm} />}
 

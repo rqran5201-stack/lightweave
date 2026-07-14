@@ -263,6 +263,71 @@ export async function generateSOP(question, relatedRecords) {
 }
 
 /**
+ * Merge new content into an existing SOP.
+ * Called when user confirms the new question is about the same topic.
+ */
+export async function mergeSOP(existingSOP, question, relatedRecords) {
+  const recordsText = relatedRecords
+    .map(r => `---\n日期: ${new Date(r.createdAt).toLocaleDateString('zh-CN')}\n内容: ${r.content}`)
+    .join('\n');
+
+  const existingStepsText = JSON.stringify(existingSOP.steps || [], null, 2);
+
+  const systemPrompt = `你是织光 LightWeave 的 SOP 完善引擎。用户完善一个已有 SOP，你需要基于新的素材补充和改进它。
+
+已有 SOP 标题：${existingSOP.title}
+
+已有步骤：
+${existingStepsText}
+
+要求：
+1. 保留已有步骤中仍然有效的，可微调措辞使其更清晰
+2. 从新记录中提取互补的新步骤，不要重复已有步骤的语义
+3. 如果新旧步骤语义相似，合并为一条更完整的步骤
+4. 重新排序所有步骤，保持逻辑递进（由浅入深、由因到果）
+5. 步骤总数控制在 3-10 个
+6. 每步需引用用户的具体记录作为案例
+7. 用温和的、像"未来的自己写给现在的自己"的语气
+8. 不要编造用户没经历过的建议
+9. title 保持不变或微调（保持核心主题词一致）
+
+请以 JSON 格式返回：
+{
+  "title": "SOP 标题（保持或微调原标题）",
+  "steps": [
+    {
+      "stepNumber": 1,
+      "title": "步骤标题",
+      "description": "具体操作说明",
+      "sourceRecordId": "引用的记录ID",
+      "sourceQuote": "引用的原文"
+    }
+  ],
+  "summary": "1-2句话总结这个更新后的SOP"
+}`;
+
+  const result = await chatCompletion({
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: `用户的新问题：${question}\n\n新相关记录：\n${recordsText}` },
+    ],
+    model: getModel(),
+    temperature: 0.5,
+    maxTokens: 2048,
+  });
+
+  const text = result.choices[0].message.content;
+  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || text.match(/(\{[\s\S]*\})/);
+  const jsonStr = jsonMatch ? jsonMatch[1] : text;
+
+  try {
+    return JSON.parse(jsonStr);
+  } catch {
+    return { title: existingSOP.title, steps: existingSOP.steps, summary: text, rawResponse: text };
+  }
+}
+
+/**
  * Q&A — user asks a question, AI answers based on records.
  */
 export function answerQuestion(question, records, conversationHistory = []) {
