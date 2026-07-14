@@ -11,6 +11,7 @@ const MAX_CHARS = 2000;
 
 // Design tokens
 const BG = '#FFF8F3';
+const NOTE_BG = '#FFFCF9';
 const TEXT_COLOR = '#3D2E27';
 const PRIMARY = '#C77D5A';
 const TERTIARY = '#B8A99E';
@@ -61,13 +62,6 @@ function drawRoundedRect(ctx, x, y, w, h, r) {
 
 /**
  * Render a LightWeave export card onto an HTML Canvas.
- * @param {object} opts
- * @param {string} opts.content - record body text
- * @param {Array} opts.associations - AI associations
- * @param {object|null} opts.externalKnowledge - { framework, explanation, source }
- * @param {string} opts.scope - 'both' | 'note' | 'ai'
- * @param {string} opts.dateStr - formatted date string
- * @returns {HTMLCanvasElement}
  */
 export function renderExportCard({ content, associations, externalKnowledge, scope, dateStr }) {
   const hasAI = (scope === 'both' || scope === 'ai') &&
@@ -92,39 +86,50 @@ export function renderExportCard({ content, associations, externalKnowledge, sco
   if (hasAI) {
     mCtx.font = '14px Georgia, "Noto Serif SC", serif';
     const aiText = buildAIText(associations, externalKnowledge);
-    const aiWidth = CONTENT_WIDTH - 32; // inner padding
+    const aiWidth = CONTENT_WIDTH - 32;
     aiLines = wrapLines(mCtx, aiText, aiWidth);
   }
 
-  // Calculate total height
-  let y = PADDING + 48; // top padding + date row
+  // ---- Height calculation ----
+  let y = PADDING + 28; // top: date row
+
+  // Note section
+  let noteBoxY = 0;
+  let noteBoxH = 0;
   if (hasNote && bodyLines.length > 0) {
-    y += bodyLines.length * 29; // 16px * 1.8 ≈ 29px per line
-    y += 16; // gap after body
+    noteBoxY = y + 8;
+    noteBoxH = 20 + bodyLines.length * 29 + 20; // padding + lines + padding
+    y = noteBoxY + noteBoxH + 16;
   }
-  let aiSectionY = 0;
-  let aiSectionH = 0;
+
+  // Separator + AI section
+  let aiBoxY = 0;
+  let aiBoxH = 0;
   if (hasAI) {
     if (hasNote && bodyLines.length > 0) {
-      y += 24; // separator gap
+      y += 8; // gap before separator
     }
-    aiSectionY = y;
-    aiSectionH = 32 + aiLines.length * 24 + 32; // padding + lines + padding
-    y += aiSectionH + 16;
+    y += 20; // separator + gap
+    aiBoxY = y;
+    aiBoxH = 24 + 28 + aiLines.length * 24 + 24; // padding-top + label(18px+10px) + lines + padding-bottom
+    y = aiBoxY + aiBoxH + 16;
   }
-  y += 40; // date + brand
-  y += 48; // bottom padding
 
-  const cardHeight = Math.max(y, 1000);
+  y += 48; // bottom: date + brand
+  y += 32; // bottom padding
 
-  // Create main canvas
+  // Dynamic minimum height
+  const minHeight = hasAI ? 520 : 300;
+  const cardHeight = Math.max(y, minHeight);
+
+  // ---- Render ----
   const canvas = document.createElement('canvas');
   canvas.width = CARD_WIDTH;
   canvas.height = cardHeight;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Failed to get 2d canvas context');
 
-  // Background
+  // Card background
   ctx.fillStyle = BG;
   drawRoundedRect(ctx, 0, 0, CARD_WIDTH, cardHeight, CARD_RADIUS);
   ctx.fill();
@@ -134,52 +139,66 @@ export function renderExportCard({ content, associations, externalKnowledge, sco
   ctx.font = '13px Georgia, "Noto Serif SC", serif';
   ctx.fillText(dateStr, PADDING, PADDING + 8);
 
-  let curY = PADDING + 48;
+  let curY = PADDING + 28;
 
-  // Body section
+  // ---- Note section ----
   if (hasNote && bodyLines.length > 0) {
+    curY += 8;
+    // Note background pill
+    ctx.fillStyle = NOTE_BG;
+    drawRoundedRect(ctx, PADDING - 4, curY, CONTENT_WIDTH + 8, noteBoxH, 10);
+    ctx.fill();
+
+    // Left accent bar
+    ctx.fillStyle = PRIMARY;
+    drawRoundedRect(ctx, PADDING - 4, curY + 8, 3, noteBoxH - 16, 2);
+    ctx.fill();
+
+    curY += 20;
+    // Body text
     ctx.fillStyle = TEXT_COLOR;
     ctx.font = '16px Georgia, "Noto Serif SC", serif';
     for (const line of bodyLines) {
-      if (curY + 29 > cardHeight - 100) break; // safety
-      ctx.fillText(line, PADDING, curY + 14);
+      if (curY + 29 > cardHeight - 120) break;
+      ctx.fillText(line, PADDING + 20, curY + 14);
       curY += 29;
     }
-    curY += 16;
+    curY += 20 + 16; // bottom padding + gap after box
   }
 
-  // Separator
+  // ---- Separator ----
   if (hasAI && hasNote && bodyLines.length > 0) {
     curY += 8;
     ctx.strokeStyle = BORDER_LIGHT;
     ctx.lineWidth = 1;
     ctx.beginPath();
+    ctx.setLineDash([4, 4]);
     ctx.moveTo(PADDING, curY);
     ctx.lineTo(CARD_WIDTH - PADDING, curY);
     ctx.stroke();
-    curY += 24;
-    aiSectionY = curY;
+    ctx.setLineDash([]);
+    curY += 28;
   }
 
-  // AI section
+  // ---- AI section ----
   if (hasAI) {
     // Background pill
     ctx.fillStyle = AI_BG;
-    drawRoundedRect(ctx, PADDING - 8, curY - 8, CONTENT_WIDTH + 16, aiSectionH || (32 + aiLines.length * 24 + 32), 12);
+    drawRoundedRect(ctx, PADDING - 8, curY, CONTENT_WIDTH + 16, aiBoxH, 12);
     ctx.fill();
 
     curY += 24;
-    // AI label
+    // AI label — 18px per spec
     ctx.fillStyle = PRIMARY;
-    ctx.font = '600 14px Georgia, "Noto Serif SC", serif';
-    ctx.fillText('AI 分析', PADDING + 8, curY + 2);
-    curY += 32;
+    ctx.font = '600 18px Georgia, "Noto Serif SC", serif';
+    ctx.fillText('AI 分析', PADDING + 8, curY + 6);
+    curY += 38;
 
     // AI content
     ctx.fillStyle = TEXT_COLOR;
     ctx.font = '14px Georgia, "Noto Serif SC", serif';
     for (const line of aiLines) {
-      if (curY + 24 > cardHeight - 100) break;
+      if (curY + 24 > cardHeight - 120) break;
       ctx.fillText(line, PADDING + 8, curY + 2);
       curY += 24;
     }
@@ -196,6 +215,13 @@ export function renderExportCard({ content, associations, externalKnowledge, sco
   ctx.fillStyle = TERTIARY;
   ctx.font = '12px Georgia, "Noto Serif SC", serif';
   ctx.fillText('织光 LightWeave', PADDING, curY + 30);
+
+  // Bottom-right brand watermark
+  ctx.fillStyle = TERTIARY;
+  ctx.globalAlpha = 0.15;
+  ctx.font = '72px Georgia, "Noto Serif SC", serif';
+  ctx.fillText('织', CARD_WIDTH - PADDING - 80, cardHeight - 60);
+  ctx.globalAlpha = 1;
 
   return canvas;
 }
