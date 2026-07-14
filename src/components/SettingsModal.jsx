@@ -424,7 +424,7 @@ export function SettingsModal({ onClose, onSaved }) {
               disabled={exporting}
               style={{ flex: 1 }}
             >
-              {exporting ? '导出中...' : '&#128190; 导出备份'}
+              {exporting ? '导出中...' : '💾 导出备份'}
             </button>
             <button
               className="btn btn-ghost btn-sm"
@@ -432,7 +432,7 @@ export function SettingsModal({ onClose, onSaved }) {
               disabled={importing}
               style={{ flex: 1 }}
             >
-              {importing ? '导入中...' : '&#128229; 导入恢复'}
+              {importing ? '导入中...' : '📥 导入恢复'}
             </button>
             <input
               ref={fileInputRef}
@@ -540,7 +540,7 @@ export function SettingsModal({ onClose, onSaved }) {
               onClick={() => { setShowEncryptSection(!showEncryptSection); setEncryptError(''); }}
               style={{ width: '100%', justifyContent: 'center', marginBottom: 0, marginTop: 8 }}
             >
-              {showEncryptSection ? '收起 ▲' : '&#128274; 设置加密备份'}
+              {showEncryptSection ? '收起 ▲' : '🔒 设置加密备份'}
             </button>
           )}
 
@@ -589,7 +589,7 @@ export function SettingsModal({ onClose, onSaved }) {
                   disabled={encryptExporting}
                   style={{ flex: 1 }}
                 >
-                  {encryptExporting ? '加密中...' : '&#128274; 导出加密备份 (.lightweave)'}
+                  {encryptExporting ? '加密中...' : '🔒 导出加密备份 (.lightweave)'}
                 </button>
                 <button
                   className="btn btn-ghost btn-sm"
@@ -625,7 +625,7 @@ export function SettingsModal({ onClose, onSaved }) {
                 disabled={encryptExporting}
                 style={{ flex: 1 }}
               >
-                {encryptExporting ? '加密中...' : '&#128274; 更新加密备份'}
+                {encryptExporting ? '加密中...' : '🔒 更新加密备份'}
               </button>
             </div>
           )}

@@ -296,7 +296,7 @@ export function QAPage({ navigate, apiKeyOk }) {
                   className="qa-topic-header"
                   onClick={() => setCollapsedTopics(c => ({ ...c, [topic.id]: !c[topic.id] }))}
                 >
-                  <span className="qa-topic-arrow">{collapsedTopics[topic.id] ? '&#9654;' : '&#9660;'}</span>
+                  <span className="qa-topic-arrow">{collapsedTopics[topic.id] ? '▶' : '▼'}</span>
                   <span className="qa-topic-title">{topic.question}</span>
                   <span className="qa-topic-meta">
                     {new Date(topic.createdAt).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
