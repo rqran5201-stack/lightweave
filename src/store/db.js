@@ -234,6 +234,26 @@ export async function getBacklinks(recordId) {
   return backlinks;
 }
 
+export async function getAssociationCounts() {
+  const db = await getDB();
+  const allAssociations = await db.getAllFromIndex('associations', 'createdAt');
+  const counts = new Map();
+
+  for (const entry of allAssociations) {
+    if (!entry.associations) continue;
+    // Source count: this record's own associations
+    counts.set(entry.recordId, (counts.get(entry.recordId) || 0) + entry.associations.length);
+    // Backlink count: each target reference adds 1
+    for (const assoc of entry.associations) {
+      if (assoc.targetRecordId) {
+        counts.set(assoc.targetRecordId, (counts.get(assoc.targetRecordId) || 0) + 1);
+      }
+    }
+  }
+
+  return counts;
+}
+
 // ========== SOPs ==========
 
 export async function saveSOP(sop) {

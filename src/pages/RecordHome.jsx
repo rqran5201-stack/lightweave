@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '../App';
-import { saveRecord, getRecentRecords, searchRecords, getRecordCount, saveAssociation, deleteRecord, saveEmbedding, getAllRecordsWithEmbeddings } from '../store/db';
+import { saveRecord, getRecentRecords, searchRecords, getAssociationCounts, saveAssociation, deleteRecord, saveEmbedding, getAllRecordsWithEmbeddings } from '../store/db';
 import { analyzeAssociations } from '../api/deepseek';
 import { generateEmbedding, findRelevantRecords } from '../api/embedding';
 import { ImportZone } from '../components/ImportZone';
@@ -21,9 +21,13 @@ export function RecordHome({ navigate, apiKeyOk }) {
   const loadRecords = useCallback(async () => {
     if (searchQuery) {
       const results = await searchRecords(searchQuery);
+      const counts = await getAssociationCounts();
+      results.forEach(r => { r.associationCount = counts.get(r.id) || 0; });
       setRecords(results);
     } else {
       const results = await getRecentRecords(50);
+      const counts = await getAssociationCounts();
+      results.forEach(r => { r.associationCount = counts.get(r.id) || 0; });
       setRecords(results);
     }
     setLoading(false);

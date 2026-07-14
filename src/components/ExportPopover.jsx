@@ -142,7 +142,6 @@ export function ExportPopover({ context, record, associations, externalKnowledge
   };
 
   const handleExport = () => {
-    console.log('handleExport called', { format, scope, rendering });
     try {
       if (format === 'png') {
         exportPNG();

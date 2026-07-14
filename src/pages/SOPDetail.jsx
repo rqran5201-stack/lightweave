@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '../App';
-import { getSOP, deleteSOP } from '../store/db';
+import { getSOP, deleteSOP, saveSOP } from '../store/db';
 import { ExportPopover } from '../components/ExportPopover';
 
 export function SOPDetail({ id, navigate, showConfirm }) {
@@ -69,9 +69,14 @@ export function SOPDetail({ id, navigate, showConfirm }) {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onFocus={(e) => e.target.style.borderBottomColor = 'var(--color-primary)'}
-          onBlur={(e) => {
+          onBlur={async (e) => {
             e.target.style.borderBottomColor = 'transparent';
-            if (title.trim() && title !== sop.title) showToast('标题已更新');
+            if (title.trim() && title !== sop.title) {
+              const updated = { ...sop, title: title.trim() };
+              await saveSOP(updated);
+              setSOP(updated);
+              showToast('标题已更新');
+            }
           }}
         />
         <div className="sop-detail-meta">
