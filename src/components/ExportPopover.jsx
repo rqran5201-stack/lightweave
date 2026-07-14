@@ -170,7 +170,7 @@ export function ExportPopover({ context, record, associations, externalKnowledge
   };
 
   return (
-    <div className="export-popover" ref={popoverRef} style={{ top: 'auto', bottom: 'auto', right: 24 }}>
+    <div className="export-popover" ref={popoverRef} style={{ top: 100, right: 24, maxHeight: 'calc(100vh - 140px)', overflowY: 'auto' }}>
       <button className="export-close" onClick={onClose}>&#10005;</button>
 
       {/* Step 1: Content scope */}
@@ -213,16 +213,9 @@ export function ExportPopover({ context, record, associations, externalKnowledge
             </button>
           ))}
         </div>
-        <div className="export-download-btn"
-          role="button"
-          tabIndex={0}
-          style={{ cursor: rendering ? 'not-allowed' : 'pointer', opacity: rendering ? 0.6 : 1, textAlign: 'center' }}
-          onClick={(e) => {
-            alert('Export button clicked!');
-            if (!rendering) handleExport();
-          }}>
+        <button className="export-download-btn" onClick={handleExport} disabled={rendering}>
           {rendering ? '渲染中...' : `导出 ${scopeLabels[scope]} · ${formatLabels[format]?.split(' ')[0]}`}
-        </div>
+        </button>
       </div>
     </div>
   );
