@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { useToast } from '../App';
+import { renderExportCard } from '../api/export-card';
 
 export function ExportPopover({ context, record, associations, externalKnowledge, onClose }) {
   const showToast = useToast();
   const [scope, setScope] = useState('both');
   const [format, setFormat] = useState('md');
+  const [rendering, setRendering] = useState(false);
   const popoverRef = useRef(null);
 
   useEffect(() => {
@@ -22,13 +24,22 @@ export function ExportPopover({ context, record, associations, externalKnowledge
 
   const txtDisabled = scope === 'ai';
 
-  const handleExport = () => {
+  const getTimestamp = () => {
     const now = new Date();
-    const ts = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
-    const prefix = context === 'sop' ? '织光_SOP' : '织光_记录';
-    const extMap = { md: '.md', png: '.png', pdf: '.pdf', txt: '.txt' };
+    return `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+  };
 
-    // Build export content
+  const getFilename = (ext) => {
+    const prefix = context === 'sop' ? '织光_SOP' : '织光_记录';
+    return `${prefix}_${getTimestamp()}${ext}`;
+  };
+
+  const getDateStr = () => {
+    return new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
+  };
+
+  // Build plain-text content for MD/TXT export
+  const buildTextContent = () => {
     let content = '';
     if (scope === 'both' || scope === 'note') {
       content += record?.content || '';
@@ -42,19 +53,99 @@ export function ExportPopover({ context, record, associations, externalKnowledge
     if ((scope === 'both' || scope === 'ai') && externalKnowledge) {
       content += `\n## 外部知识\n\n${externalKnowledge.framework}\n${externalKnowledge.explanation}\n来源: ${externalKnowledge.source}\n`;
     }
+    return content;
+  };
+
+  // Render canvas card → download as PNG
+  const exportPNG = async () => {
+    setRendering(true);
+    try {
+      const canvas = renderExportCard({
+        content: record?.content || '',
+        associations: associations || [],
+        externalKnowledge: externalKnowledge || null,
+        scope,
+        dateStr: getDateStr(),
+      });
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = getFilename('.png');
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('图片卡片已导出');
+    } catch (e) {
+      showToast('导出失败，请重试');
+    } finally {
+      setRendering(false);
+      onClose();
+    }
+  };
+
+  // Render canvas card → embed in PDF → download
+  const exportPDF = async () => {
+    setRendering(true);
+    try {
+      const canvas = renderExportCard({
+        content: record?.content || '',
+        associations: associations || [],
+        externalKnowledge: externalKnowledge || null,
+        scope,
+        dateStr: getDateStr(),
+      });
+
+      const dataUrl = canvas.toDataURL('image/png');
+      const { default: jsPDF } = await import('jspdf');
+
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageW = 210;
+      const pageH = 297;
+      const marginX = 20;
+      const marginY = 15;
+      const maxW = pageW - marginX * 2;
+      const maxH = pageH - marginY * 2;
+
+      // Scale card to fit A4 within margins
+      const cardW = canvas.width;
+      const cardH = canvas.height;
+      const scale = Math.min(maxW / cardW, maxH / cardH);
+      const imgW = cardW * scale;
+      const imgH = cardH * scale;
+      const x = (pageW - imgW) / 2;
+      const y = (pageH - imgH) / 2;
+
+      pdf.addImage(dataUrl, 'PNG', x, y, imgW, imgH);
+      pdf.save(getFilename('.pdf'));
+      showToast('PDF 已导出');
+    } catch (e) {
+      showToast('导出失败，请重试');
+    } finally {
+      setRendering(false);
+      onClose();
+    }
+  };
+
+  const handleExport = () => {
+    const content = buildTextContent();
 
     if (format === 'png') {
-      showToast('🖼️ 图片卡片功能将在后续版本实现（Canvas API 渲染 750×1000px）');
-      onClose();
+      exportPNG();
       return;
     }
 
-    const mimeMap = { md: 'text/markdown', txt: 'text/plain', pdf: 'application/pdf' };
+    if (format === 'pdf') {
+      exportPDF();
+      return;
+    }
+
+    const mimeMap = { md: 'text/markdown', txt: 'text/plain' };
+    const extMap = { md: '.md', txt: '.txt' };
     const blob = new Blob([content], { type: mimeMap[format] || 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = prefix + '_' + ts + extMap[format];
+    a.download = getFilename(extMap[format]);
     a.click();
     URL.revokeObjectURL(url);
     showToast(`已导出 ${formatLabels[format]}`);
@@ -105,8 +196,8 @@ export function ExportPopover({ context, record, associations, externalKnowledge
             </button>
           ))}
         </div>
-        <button className="export-download-btn" onClick={handleExport}>
-          导出 {scopeLabels[scope]} · {formatLabels[format]?.split(' ')[0]}
+        <button className="export-download-btn" onClick={handleExport} disabled={rendering}>
+          {rendering ? '渲染中...' : `导出 ${scopeLabels[scope]} · ${formatLabels[format]?.split(' ')[0]}`}
         </button>
       </div>
     </div>
