@@ -213,9 +213,16 @@ export function ExportPopover({ context, record, associations, externalKnowledge
             </button>
           ))}
         </div>
-        <button className="export-download-btn" onClick={handleExport} disabled={rendering}>
+        <div className="export-download-btn"
+          role="button"
+          tabIndex={0}
+          style={{ cursor: rendering ? 'not-allowed' : 'pointer', opacity: rendering ? 0.6 : 1, textAlign: 'center' }}
+          onClick={(e) => {
+            alert('Export button clicked!');
+            if (!rendering) handleExport();
+          }}>
           {rendering ? '渲染中...' : `导出 ${scopeLabels[scope]} · ${formatLabels[format]?.split(' ')[0]}`}
-        </button>
+        </div>
       </div>
     </div>
   );
