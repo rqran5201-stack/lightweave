@@ -220,13 +220,14 @@ export async function generateSOP(question, relatedRecords) {
 
 要求：
 1. 从用户的记录中找规律、经验、教训
-2. 提炼成可操作的步骤（3-7步）
+2. 提炼成可操作的步骤（3-7步），合并到同一个 SOP 中，用步骤区分不同子话题
 3. 每步需引用用户的具体记录作为案例
 4. 用温和的、像"未来的自己写给现在的自己"的语气
 5. 不要编造用户没经历过的建议
 6. title 必须从用户提问中直接派生——提取问题的核心主题词作为标题基础，确保同一问题每次生成的标题一致。例如"关于团队协作我有什么经验"→ title 始终为"团队协作方法论"
+7. 一次只生成一个 SOP 对象，严禁返回 JSON 数组或多个对象
 
-请以 JSON 格式返回：
+请严格以单个 JSON 对象格式返回（不是数组，不是多个对象）：
 {
   "title": "SOP 标题（从问题核心主题词派生，同一问题每次返回相同标题）",
   "steps": [
@@ -252,14 +253,28 @@ export async function generateSOP(question, relatedRecords) {
   });
 
   const text = result.choices[0].message.content;
-  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || text.match(/(\{[\s\S]*\})/);
+  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || text.match(/(\{[\s\S]*\})/) || text.match(/(\[[\s\S]*\])/);
   const jsonStr = jsonMatch ? jsonMatch[1] : text;
 
+  let parsed;
   try {
-    return JSON.parse(jsonStr);
+    parsed = JSON.parse(jsonStr);
   } catch {
     return { title: '分析结果', steps: [], summary: text, rawResponse: text };
   }
+
+  // Defend against LLM returning an array of SOPs instead of a single object
+  if (Array.isArray(parsed)) {
+    const first = parsed[0] || {};
+    const mergedSteps = parsed.slice(1).reduce((acc, sop) => acc.concat(sop.steps || []), first.steps || []);
+    return {
+      title: first.title || '分析结果',
+      steps: mergedSteps.map((s, i) => ({ ...s, stepNumber: i + 1 })),
+      summary: first.summary || '',
+    };
+  }
+
+  return parsed;
 }
 
 /**
@@ -317,14 +332,27 @@ ${existingStepsText}
   });
 
   const text = result.choices[0].message.content;
-  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || text.match(/(\{[\s\S]*\})/);
+  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || text.match(/(\{[\s\S]*\})/) || text.match(/(\[[\s\S]*\])/);
   const jsonStr = jsonMatch ? jsonMatch[1] : text;
 
+  let parsed;
   try {
-    return JSON.parse(jsonStr);
+    parsed = JSON.parse(jsonStr);
   } catch {
     return { title: existingSOP.title, steps: existingSOP.steps, summary: text, rawResponse: text };
   }
+
+  if (Array.isArray(parsed)) {
+    const first = parsed[0] || {};
+    const mergedSteps = parsed.slice(1).reduce((acc, sop) => acc.concat(sop.steps || []), first.steps || []);
+    return {
+      title: first.title || existingSOP.title,
+      steps: mergedSteps.map((s, i) => ({ ...s, stepNumber: i + 1 })),
+      summary: first.summary || '',
+    };
+  }
+
+  return parsed;
 }
 
 /**

@@ -4,7 +4,7 @@
 
 ## 待办（已识别，未启动）
 
-- [ ] **导出功能补全**：PNG 精美图片卡片（Canvas API 渲染 750×1000px）和真正的 PDF 排版导出，当前仅为占位提示。参考 Flomo 分享卡片、流光卡片、Day One 日记导出等产品。等加密/备份问题处理完后再推进。
+- [x] **导出功能补全**：PNG 精美图片卡片（Canvas API 渲染 750×1000px，`export-card.js`）+ PDF 排版导出（jsPDF，`ExportPopover.jsx`）。已于 V3.0 批次实现（commit `a0b4e7d` / `3bdaf78`）。
 
 ## 产品一句话定义
 
