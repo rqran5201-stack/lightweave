@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useToast } from '../App';
-import { getQAHistory, saveQAMessage, deleteQAMessage, getRecentRecords, saveSOP, getAllSOPs, getAllRecordsWithEmbeddings, getSOPEmbeddings, saveSOPEmbedding } from '../store/db';
+import { generateId, getQAHistory, saveQAMessage, deleteQAMessage, getRecentRecords, saveSOP, getAllSOPs, getAllRecordsWithEmbeddings, getSOPEmbeddings, saveSOPEmbedding } from '../store/db';
 import { answerQuestion, generateSOP, mergeSOP } from '../api/deepseek';
 import { generateEmbedding, findRelevantRecords, cosineSimilarity } from '../api/embedding';
 
@@ -91,7 +91,7 @@ export function QAPage({ navigate, apiKeyOk, showConfirm }) {
       return;
     }
 
-    const userMsg = { id: crypto.randomUUID(), role: 'user', content: input.trim(), createdAt: Date.now() };
+    const userMsg = { id: generateId(), role: 'user', content: input.trim(), createdAt: Date.now() };
     setMessages(m => [...m, userMsg]);
     await saveQAMessage(userMsg);
     setInput('');
@@ -110,7 +110,7 @@ export function QAPage({ navigate, apiKeyOk, showConfirm }) {
       }
       const conversationHistory = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }));
 
-      const aiMsg = { id: crypto.randomUUID(), role: 'assistant', content: '', createdAt: Date.now() };
+      const aiMsg = { id: generateId(), role: 'assistant', content: '', createdAt: Date.now() };
       setMessages(m => [...m, aiMsg]);
 
       let fullContent = '';

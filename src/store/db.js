@@ -50,9 +50,21 @@ function getDB() {
 
 // ========== Records ==========
 
+// crypto.randomUUID is unavailable in insecure contexts (plain HTTP),
+// e.g. the Aliyun IP deployment; getRandomValues works everywhere.
+export function generateId() {
+  if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 export async function saveRecord({ content, tags = [] }) {
   const db = await getDB();
-  const id = crypto.randomUUID();
+  const id = generateId();
   const record = {
     id,
     content,
@@ -86,7 +98,7 @@ export async function batchImportRecords(items) {
   const tx = db.transaction('records', 'readwrite');
   const saved = [];
   for (const item of items) {
-    const id = crypto.randomUUID();
+    const id = generateId();
     const record = {
       id,
       content: item.content,
@@ -275,7 +287,7 @@ export async function getAssociationCounts() {
 
 export async function saveSOP(sop) {
   const db = await getDB();
-  const id = sop.id || crypto.randomUUID();
+  const id = sop.id || generateId();
   const record = {
     ...sop,
     id,

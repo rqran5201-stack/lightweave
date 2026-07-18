@@ -2,3 +2,14 @@ node_modules/
 dist/
 .DS_Store
 *.local
+CLAUDE.md
+PROGRESS.md
+screenshots/
+交付代码包/
+项目代码/
+*.pptx
+*.zip
+*.py
+内测招募文案*.md
+织光_*.md
+部署方法论*.md
