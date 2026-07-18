@@ -4,7 +4,6 @@ dist/
 *.local
 CLAUDE.md
 PROGRESS.md
-screenshots/
 交付代码包/
 项目代码/
 *.pptx
